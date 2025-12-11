@@ -1,7 +1,7 @@
 # PR Description: Project Setup & Initialization
 
 **Branch:** `feature/project-setup`  
-**Author:** Team  
+**Author:** Hedi  
 **Date:** 2025-12-11
 
 ---
