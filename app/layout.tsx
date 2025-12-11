@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { ThemeProvider } from "@/src/components/theme-provider";
 
 export const metadata: Metadata = {
   title: "Café Aroma",
@@ -12,9 +13,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body>
+        <ThemeProvider defaultTheme="light" storageKey="cafe-aroma-theme">
+          {children}
+        </ThemeProvider>
+      </body>
     </html>
   );
 }
-

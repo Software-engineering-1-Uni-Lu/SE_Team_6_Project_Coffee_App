@@ -2,3 +2,215 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  :root {
+    /* Coffee-themed color palette - Browns and Creams */
+    --background: 0 0% 100%;
+    --foreground: 20 14% 4%;
+
+    /* Primary coffee browns */
+    --primary: 25 35% 25%;
+    --primary-foreground: 0 0% 98%;
+    --primary-hover: 25 35% 20%;
+    --primary-light: 25 30% 40%;
+
+    /* Secondary creams */
+    --secondary: 35 25% 85%;
+    --secondary-foreground: 20 14% 15%;
+    --secondary-hover: 35 25% 80%;
+
+    /* Accent colors */
+    --accent: 30 20% 60%;
+    --accent-foreground: 20 14% 4%;
+
+    /* Muted tones */
+    --muted: 35 20% 92%;
+    --muted-foreground: 20 10% 40%;
+
+    /* UI elements */
+    --card: 0 0% 100%;
+    --card-foreground: 20 14% 4%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 20 14% 4%;
+
+    /* Borders and inputs */
+    --border: 35 20% 85%;
+    --input: 35 20% 85%;
+    --ring: 25 35% 25%;
+
+    /* Status colors */
+    --success: 120 40% 50%;
+    --success-foreground: 0 0% 100%;
+    --warning: 45 90% 55%;
+    --warning-foreground: 20 14% 4%;
+    --error: 0 70% 55%;
+    --error-foreground: 0 0% 100%;
+    --info: 200 80% 50%;
+    --info-foreground: 0 0% 100%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(
+      135deg,
+      hsl(25 35% 25%) 0%,
+      hsl(30 30% 35%) 100%
+    );
+    --gradient-secondary: linear-gradient(
+      135deg,
+      hsl(35 25% 85%) 0%,
+      hsl(30 20% 90%) 100%
+    );
+    --gradient-accent: linear-gradient(
+      135deg,
+      hsl(25 35% 25%) 0%,
+      hsl(30 20% 60%) 100%
+    );
+
+    /* Shadows - coffee-themed soft shadows */
+    --shadow-sm: 0 1px 2px 0 rgba(60, 40, 20, 0.05);
+    --shadow:
+      0 1px 3px 0 rgba(60, 40, 20, 0.1), 0 1px 2px -1px rgba(60, 40, 20, 0.1);
+    --shadow-md:
+      0 4px 6px -1px rgba(60, 40, 20, 0.1), 0 2px 4px -2px rgba(60, 40, 20, 0.1);
+    --shadow-lg:
+      0 10px 15px -3px rgba(60, 40, 20, 0.1),
+      0 4px 6px -4px rgba(60, 40, 20, 0.1);
+    --shadow-xl:
+      0 20px 25px -5px rgba(60, 40, 20, 0.1),
+      0 8px 10px -6px rgba(60, 40, 20, 0.1);
+
+    /* Typography */
+    --font-sans:
+      system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, sans-serif;
+    --font-serif: Georgia, "Times New Roman", serif;
+
+    /* Spacing scale */
+    --spacing-xs: 0.25rem;
+    --spacing-sm: 0.5rem;
+    --spacing-md: 1rem;
+    --spacing-lg: 1.5rem;
+    --spacing-xl: 2rem;
+    --spacing-2xl: 3rem;
+    --spacing-3xl: 4rem;
+
+    /* Border radius */
+    --radius-sm: 0.25rem;
+    --radius-md: 0.5rem;
+    --radius-lg: 0.75rem;
+    --radius-xl: 1rem;
+    --radius-full: 9999px;
+
+    /* Accessibility - Reduced motion */
+    --motion-reduce: 0;
+    --motion-safe: 1;
+  }
+
+  /* Accessibility: Reduced motion support */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Accessibility: High contrast mode support */
+  @media (prefers-contrast: high) {
+    :root {
+      --border: 20 14% 20%;
+      --input: 20 14% 20%;
+      --ring: 25 35% 15%;
+    }
+  }
+
+  /* Base styles */
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
+  }
+
+  /* Accessibility: Focus visible styles */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  /* Accessibility: Skip to main content link */
+  .skip-to-main {
+    @apply sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground;
+  }
+}
+
+@layer utilities {
+  /* Coffee-themed gradients */
+  .gradient-primary {
+    background: var(--gradient-primary);
+  }
+
+  .gradient-secondary {
+    background: var(--gradient-secondary);
+  }
+
+  .gradient-accent {
+    background: var(--gradient-accent);
+  }
+
+  /* Text gradients */
+  .text-gradient-primary {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-primary);
+  }
+
+  /* Coffee-themed shadows */
+  .shadow-coffee-sm {
+    box-shadow: var(--shadow-sm);
+  }
+
+  .shadow-coffee {
+    box-shadow: var(--shadow);
+  }
+
+  .shadow-coffee-md {
+    box-shadow: var(--shadow-md);
+  }
+
+  .shadow-coffee-lg {
+    box-shadow: var(--shadow-lg);
+  }
+
+  .shadow-coffee-xl {
+    box-shadow: var(--shadow-xl);
+  }
+
+  /* Accessibility utilities */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  .not-sr-only {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: 0;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
+}
