@@ -234,16 +234,17 @@ export async function middleware(request: NextRequest) {
   }
 
   /**
-   * AUTH ROUTES (/auth/login, /auth/register)
+   * AUTH ROUTES (/auth/login, /auth/register, /auth/register/staff)
    *
    * BEHAVIOR:
    * If user is already authenticated, redirect to their role-specific dashboard.
    * This prevents logged-in users from accessing login/register pages.
    *
-   * REDIRECT LOGIC:
-   * - Admin → /admin (admin dashboard with full features)
-   * - Staff → /staff (staff operational dashboard)
-   * - Customer → /customer (customer ordering dashboard)
+   * REDIRECT LOGIC (UPDATED):
+   * - Admin → /staff (preparation/management dashboard)
+   * - Manager → /staff (preparation/management dashboard)
+   * - Staff → /staff (operational dashboard)
+   * - Customer → /menu (customer menu browsing)
    *
    * EXCEPTION: /auth/profile is allowed for all authenticated users
    * (handled in protectedRoutes section below)
@@ -262,13 +263,12 @@ export async function middleware(request: NextRequest) {
        * Role-based dashboard redirect
        * This is the AUTHORITATIVE redirect logic for logged-in users
        */
-      if (role === "admin") {
-        url.pathname = "/admin";
-      } else if (role === "staff") {
+      if (role === "staff" || role === "manager" || role === "admin") {
+        // All operational/management roles go to /staff dashboard
         url.pathname = "/staff";
       } else {
-        // customer or any other role defaults to customer dashboard
-        url.pathname = "/customer";
+        // customer or any other role defaults to menu
+        url.pathname = "/menu";
       }
 
       return NextResponse.redirect(url);
@@ -316,22 +316,22 @@ export async function middleware(request: NextRequest) {
   /**
    * STAFF ROUTES (/staff, /staff/*)
    *
-   * BEHAVIOR:
+   * BEHAVIOR (UPDATED):
    * - Staff: Allow access
+   * - Manager: Allow access (managers have access to operational dashboard)
    * - Admin: Allow access (admins can help with operations)
-   * - Customer: Redirect to /customer
+   * - Customer: Redirect to /menu
    * - Unauthenticated: Redirect to /auth/login
    *
    * ARCHITECTURE NOTE:
-   * Staff dashboard is for operational tasks (order queue, prep station).
-   * Admins can access this dashboard to help with operations when needed.
-   * This creates a flexible system where admins can "step down" to staff role.
+   * Staff dashboard is the PRIMARY dashboard for staff, manager, and admin roles.
+   * It contains both operational tasks (order queue, prep station) and
+   * management features (accessible based on role permissions).
    *
    * FOR UI DEVELOPERS:
-   * - The /staff page (staff/page.tsx) shows admin users an "Admin Access" badge
-   * - Admins accessing /staff will see operational tools, not admin tools
-   * - For admin features, admins must go to /admin dashboard
-   * - Create a "Switch to Admin Dashboard" link in staff layout for admins
+   * - This is the main dashboard for all non-customer roles
+   * - Role-based UI should hide/show features within this dashboard
+   * - DO NOT redirect managers/admins away from /staff
    */
   if (pathname === "/staff" || pathname.startsWith("/staff/")) {
     if (!user) {
@@ -342,40 +342,41 @@ export async function middleware(request: NextRequest) {
     }
 
     const role = getUserRole(user);
-    if (role !== "staff" && role !== "admin") {
+    if (role === "customer") {
       const url = request.nextUrl.clone();
       // Customers can't access staff features
-      url.pathname = "/customer";
+      url.pathname = "/menu";
       return NextResponse.redirect(url);
     }
 
+    // Staff, manager, and admin can all access /staff routes
     return response;
   }
 
   /**
    * ADMIN ROUTES (/admin, /admin/*)
    *
-   * BEHAVIOR:
+   * BEHAVIOR (UPDATED):
    * - Admin: Allow access
+   * - Manager: Allow access (managers can access admin dashboard)
    * - Staff: Redirect to /staff
-   * - Customer: Redirect to /customer
+   * - Customer: Redirect to /menu
    * - Unauthenticated: Redirect to /auth/login
    *
-   * ARCHITECTURE NOTE:
-   * Admin dashboard is ADMIN-ONLY. Unlike /staff (which allows admin access),
-   * /admin is restricted to admins only. This is the management dashboard
-   * with user management, settings, and system configuration.
+   * ARCHITECTURE NOTE (UPDATED):
+   * Admin dashboard is accessible to both managers and admins.
+   * Managers have the same dashboard access but fewer permissions
+   * (permission enforcement is handled at the feature level, not routing).
    *
-   * ADMIN HIERARCHY:
-   * - /admin: Admin dashboard (user mgmt, settings, reports)
-   * - /staff: Operational dashboard (order queue, prep)
-   * - Admins can access both dashboards
-   * - Staff can only access /staff
+   * ROLE HIERARCHY:
+   * - /admin: Management dashboard (accessible to manager + admin)
+   * - /staff: Primary dashboard (accessible to staff + manager + admin)
+   * - /menu: Customer dashboard
    *
    * FOR UI DEVELOPERS:
-   * - In admin dashboard, provide link to /staff for operational tasks
-   * - In staff dashboard (when admin), provide link back to /admin
-   * - This creates seamless navigation between management and operations
+   * - Both manager and admin can access /admin routes
+   * - Permission checks within features determine what actions are allowed
+   * - DO NOT add route-level restrictions between manager and admin
    */
   if (pathname === "/admin" || pathname.startsWith("/admin/")) {
     if (!user) {
@@ -386,13 +387,18 @@ export async function middleware(request: NextRequest) {
     }
 
     const role = getUserRole(user);
-    if (role !== "admin") {
+    if (role === "customer") {
       const url = request.nextUrl.clone();
-      // Redirect based on role
-      url.pathname = role === "staff" ? "/staff" : "/customer";
+      url.pathname = "/menu";
+      return NextResponse.redirect(url);
+    }
+    if (role === "staff") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/staff";
       return NextResponse.redirect(url);
     }
 
+    // Manager and admin can access /admin routes
     return response;
   }
 
