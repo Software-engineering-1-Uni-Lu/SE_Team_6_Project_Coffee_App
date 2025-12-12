@@ -1,7 +1,7 @@
 /**
- * Purpose: Customer registration page.
- * PUBLIC registration portal for customers only.
- * Staff/manager/admin must use /auth/register/staff with invite code.
+ * Purpose: Staff/Manager/Admin registration page with invite code.
+ * PROTECTED registration portal requiring valid invite code.
+ * Role is determined by the invite code, not user selection.
  */
 
 "use client";
@@ -10,11 +10,12 @@ import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-export default function RegisterPage() {
+export default function StaffRegisterPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -32,13 +33,18 @@ export default function RegisterPage() {
       return;
     }
 
+    if (!inviteCode.trim()) {
+      setError("Invite code is required");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const response = await fetch("/api/auth/register", {
+      const response = await fetch("/api/auth/register/staff", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, inviteCode }),
       });
 
       const data = await response.json();
@@ -50,7 +56,7 @@ export default function RegisterPage() {
       }
 
       // Success! Force a full page reload to ensure session is established
-      // Middleware will automatically redirect to /menu for customers
+      // Middleware will redirect to /staff for staff/manager/admin
       window.location.href = "/";
     } catch (err) {
       setError("An unexpected error occurred");
@@ -63,10 +69,10 @@ export default function RegisterPage() {
       <div className="mx-auto max-w-md">
         <header className="mb-8">
           <h1 className="text-4xl font-bold text-[hsl(25,35%,25%)]">
-            Register
+            Staff Registration
           </h1>
           <p className="mt-2 text-sm text-[hsl(25,20%,40%)]">
-            Create your Café Aroma account
+            Create your staff account using an invite code
           </p>
         </header>
 
@@ -77,6 +83,34 @@ export default function RegisterPage() {
                 <p className="text-sm text-red-800">{error}</p>
               </div>
             )}
+
+            <div className="rounded-md bg-blue-50 p-4">
+              <p className="text-sm text-blue-800">
+                <strong>Note:</strong> You need a valid invite code from an
+                administrator to register as staff, manager, or admin.
+              </p>
+            </div>
+
+            <div>
+              <label
+                htmlFor="inviteCode"
+                className="block text-sm font-medium text-[hsl(25,35%,25%)]"
+              >
+                Invite Code
+              </label>
+              <input
+                id="inviteCode"
+                type="text"
+                required
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+                className="mt-1 block w-full rounded-md border border-[hsl(25,20%,80%)] px-3 py-2 shadow-sm focus:border-[hsl(25,35%,25%)] focus:outline-none focus:ring-1 focus:ring-[hsl(25,35%,25%)]"
+                placeholder="Enter your invite code"
+              />
+              <p className="mt-1 text-xs text-[hsl(25,20%,40%)]">
+                Your role will be determined by this invite code
+              </p>
+            </div>
 
             <div>
               <label
@@ -137,7 +171,7 @@ export default function RegisterPage() {
               disabled={loading}
               className="w-full rounded-md bg-[hsl(25,35%,25%)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[hsl(25,40%,15%)] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {loading ? "Creating account..." : "Create Account"}
+              {loading ? "Creating account..." : "Create Staff Account"}
             </button>
           </form>
 
@@ -152,12 +186,12 @@ export default function RegisterPage() {
               </Link>
             </p>
             <p>
-              Staff member with invite code?{" "}
+              Customer without invite code?{" "}
               <Link
-                href="/auth/register/staff"
+                href="/auth/register"
                 className="font-medium text-[hsl(25,35%,25%)] hover:text-[hsl(25,40%,15%)]"
               >
-                Register as staff
+                Register as customer
               </Link>
             </p>
           </div>
