@@ -41,10 +41,10 @@
  * - Extracts role and blocked status from user metadata
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/src/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
-import { getUserRole, isBlocked, type UserRole } from "@/src/lib/auth";
+import { getUserRole, isBlocked, type UserRole } from "@/src/lib/auth-utils";
 
 /**
  * Return type for useUser hook
@@ -87,7 +87,7 @@ export function useUser(): UseUserReturn {
    * Fetches the current session from Supabase
    * Called on mount and can be called manually via refetch()
    */
-  const fetchUser = async () => {
+  const fetchUser = useCallback(async () => {
     try {
       const {
         data: { user: currentUser },
@@ -100,7 +100,7 @@ export function useUser(): UseUserReturn {
     } finally {
       setLoading(false);
     }
-  };
+  }, [supabase]);
 
   useEffect(() => {
     // Fetch initial session
@@ -129,7 +129,7 @@ export function useUser(): UseUserReturn {
     return () => {
       subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, [supabase, fetchUser]);
 
   /**
    * Extract role from user metadata
