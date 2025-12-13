@@ -3,86 +3,39 @@
  *
  * PURPOSE:
  * Register staff, manager, or admin accounts using invite codes.
- * Role is determined by the invite code, NOT by user input.
+ * Role is determined by the invite code and assigned by database trigger.
+ *
+ * ARCHITECTURE (UPDATED):
+ * - User provides email, password, and invite code
+ * - API passes invite_code in user metadata
+ * - Database trigger (handle_new_user) validates code and assigns role
+ * - Trigger marks invite code as used automatically
+ * - All validation happens server-side in database
  *
  * USER STORY SATISFIED:
  * - CSA-19: Staff/admin signup with invite-based registration
  *
  * SECURITY:
- * - Requires valid, unused, non-expired invite code
- * - Role is extracted from invite code (server-controlled)
+ * - Invite code validation happens in database trigger
+ * - Role assignment controlled by database (cannot be tampered with)
+ * - Single-use codes enforced by trigger
+ * - Expiration check enforced by trigger
  * - User cannot choose or manipulate their role
- * - Invite code is marked as used after successful registration
- * - Single-use codes prevent unauthorized access
  *
  * REGISTRATION FLOW:
  * 1. User provides email, password, and invite code
- * 2. Validate invite code exists and is valid
- * 3. Extract role from invite code
- * 4. Create Supabase user with role in user_metadata
- * 5. Mark invite code as used
- * 6. Return success
+ * 2. API passes invite_code in metadata to signUp
+ * 3. Supabase creates user account
+ * 4. Database trigger validates invite code
+ * 5. Trigger assigns role based on invite code
+ * 6. Trigger marks invite code as used
+ * 7. If validation fails, trigger prevents account creation
+ * 8. Return success to user
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { isValidRole } from "@/src/lib/auth-utils";
-
-/**
- * Validates an invite code and returns the role it grants
- * Returns null if invalid/expired/used
- */
-async function validateInviteCode(
-  inviteCode: string,
-  supabase: any
-): Promise<string | null> {
-  // Query the staff_invite_codes table
-  const { data, error } = await supabase
-    .from("staff_invite_codes")
-    .select("role, used, expires_at")
-    .eq("code", inviteCode)
-    .single();
-
-  if (error || !data) {
-    return null;
-  }
-
-  // Check if already used
-  if (data.used) {
-    return null;
-  }
-
-  // Check if expired
-  const expiresAt = new Date(data.expires_at);
-  if (expiresAt < new Date()) {
-    return null;
-  }
-
-  // Return the role
-  return data.role;
-}
-
-/**
- * Marks an invite code as used
- */
-async function markInviteUsed(
-  inviteCode: string,
-  userId: string,
-  supabase: any
-): Promise<boolean> {
-  const { error } = await supabase
-    .from("staff_invite_codes")
-    .update({
-      used: true,
-      used_by: userId,
-      used_at: new Date().toISOString(),
-    })
-    .eq("code", inviteCode)
-    .eq("used", false); // Double-check not already used (race condition protection)
-
-  return !error;
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -122,48 +75,39 @@ export async function POST(request: NextRequest) {
       }
     );
 
-    // Validate invite code and get role
-    const role = await validateInviteCode(inviteCode, supabase);
-
-    if (!role) {
-      return NextResponse.json(
-        {
-          error:
-            "Invalid, expired, or already used invite code. Please contact an administrator.",
-        },
-        { status: 400 }
-      );
-    }
-
-    // Double-check role is valid (should always be true if invite exists)
-    if (!isValidRole(role)) {
-      return NextResponse.json(
-        { error: "Invalid role in invite code" },
-        { status: 500 }
-      );
-    }
-
-    // Role must be staff, manager, or admin (not customer)
-    if (role === "customer") {
-      return NextResponse.json(
-        { error: "Invalid invite code for staff registration" },
-        { status: 400 }
-      );
-    }
-
-    // Create user with Supabase Auth
-    // Role is set in user_metadata and CANNOT be overridden by client
+    /**
+     * Create user with invite_code in metadata
+     *
+     * The database trigger will:
+     * 1. Validate the invite code (exists, not used, not expired)
+     * 2. Extract the role from the invite code
+     * 3. Assign the role in user_roles table
+     * 4. Mark the invite code as used
+     *
+     * If validation fails, the trigger will PREVENT account creation
+     * and raise an exception with a helpful error message.
+     */
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
-          role, // Role from invite code (server-controlled)
+          invite_code: inviteCode, // Database trigger will validate this
         },
       },
     });
 
     if (error) {
+      // Check if error is from database trigger (invite code validation)
+      if (error.message.includes("invite code")) {
+        return NextResponse.json(
+          {
+            error:
+              "Invalid, expired, or already used invite code. Please contact an administrator.",
+          },
+          { status: 400 }
+        );
+      }
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
@@ -174,24 +118,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Mark invite code as used
-    const marked = await markInviteUsed(inviteCode, data.user.id, supabase);
-
-    if (!marked) {
-      // User was created but invite wasn't marked
-      // This is acceptable - log it but don't fail the registration
-      console.warn(
-        `Invite code ${inviteCode} was not marked as used for user ${data.user.id}`
-      );
-    }
-
     return NextResponse.json(
       {
         message: "Registration successful",
         user: {
           id: data.user.id,
           email: data.user.email,
-          role: data.user.user_metadata.role,
+          // Role will be in user_roles table (assigned by trigger)
         },
       },
       {

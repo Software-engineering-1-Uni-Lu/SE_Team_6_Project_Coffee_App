@@ -63,15 +63,11 @@ export async function POST(request: NextRequest) {
     );
 
     // Create user with Supabase Auth
-    // Role is FORCED to "customer" - cannot be overridden by client
+    // Database trigger will automatically assign "customer" role
+    // No need to pass role in metadata - trigger handles it!
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        data: {
-          role: "customer", // Always customer for this endpoint
-        },
-      },
     });
 
     if (error) {
@@ -91,7 +87,7 @@ export async function POST(request: NextRequest) {
         user: {
           id: data.user.id,
           email: data.user.email,
-          role: "customer",
+          // Role will be in user_roles table (assigned by trigger)
         },
       },
       {
