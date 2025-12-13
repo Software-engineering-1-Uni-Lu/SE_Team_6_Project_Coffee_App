@@ -7,12 +7,15 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useCart } from "@/src/hooks/use-cart";
 
 interface NavbarProps {
   onCartOpen: () => void;
 }
 
 export function Navbar({ onCartOpen }: NavbarProps) {
+  const { totalItems } = useCart();
+
   return (
     <nav className="sticky top-0 z-50 w-full border-b bg-[hsl(35,20%,98%)] shadow-sm">
       <div className="container mx-auto px-4">
@@ -101,9 +104,14 @@ export function Navbar({ onCartOpen }: NavbarProps) {
           <div className="flex items-center gap-4">
             <button
               onClick={onCartOpen}
-              className="px-4 py-2 text-sm font-medium text-[hsl(25,35%,25%)] transition-colors hover:text-[hsl(25,40%,15%)]"
+              className="relative px-4 py-2 text-sm font-medium text-[hsl(25,35%,25%)] transition-colors hover:text-[hsl(25,40%,15%)]"
             >
               Cart
+              {totalItems > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[hsl(25,35%,25%)] text-xs text-white">
+                  {totalItems}
+                </span>
+              )}
             </button>
 
             <Link
