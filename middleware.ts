@@ -256,7 +256,7 @@ export async function middleware(request: NextRequest) {
    */
   if (pathname.startsWith("/auth") && pathname !== "/auth/profile") {
     if (user) {
-      const role = getUserRole(user);
+      const role = await getUserRole(user.id);
       const url = request.nextUrl.clone();
 
       /**
@@ -302,11 +302,12 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    const role = getUserRole(user);
+    const role = await getUserRole(user.id);
     if (role !== "customer") {
       const url = request.nextUrl.clone();
       // Redirect to appropriate dashboard
-      url.pathname = role === "admin" ? "/admin" : "/staff";
+      url.pathname =
+        role === "admin" || role === "manager" ? "/admin" : "/staff";
       return NextResponse.redirect(url);
     }
 
@@ -341,7 +342,7 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    const role = getUserRole(user);
+    const role = await getUserRole(user.id);
     if (role === "customer") {
       const url = request.nextUrl.clone();
       // Customers can't access staff features
@@ -386,7 +387,7 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    const role = getUserRole(user);
+    const role = await getUserRole(user.id);
     if (role === "customer") {
       const url = request.nextUrl.clone();
       url.pathname = "/menu";
