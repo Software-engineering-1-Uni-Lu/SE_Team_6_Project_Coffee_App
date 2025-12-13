@@ -132,6 +132,8 @@ export default function ProfilePage() {
    * Handle logout
    *
    * CSA-29: Log out
+   * IMPORTANT: Uses window.location.href for full page reload
+   * to ensure session is completely cleared from all components
    */
   const handleLogout = async () => {
     try {
@@ -140,8 +142,8 @@ export default function ProfilePage() {
         credentials: "include",
       });
 
-      // Redirect to home page
-      router.push("/");
+      // Force full page reload to clear all state
+      window.location.href = "/";
     } catch (err) {
       console.error("Logout error:", err);
     }

@@ -307,13 +307,13 @@ export default async function StaffDashboardPage() {
    * may need to help with operations. However, admins will typically
    * use /admin dashboard which includes both admin and staff features.
    */
-  const role = getUserRole(user);
+  const role = await getUserRole(user.id);
 
   if (role === "customer") {
     redirect("/customer");
   }
 
-  // Staff and admin can proceed
+  // Staff, manager, and admin can proceed
 
   /**
    * ========================================================================
@@ -343,7 +343,7 @@ export default async function StaffDashboardPage() {
               Café Aroma - Staff Portal
             </h1>
             <div className="flex items-center gap-4">
-              {role === "admin" && (
+              {(role === "admin" || role === "manager") && (
                 <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
                   Admin Access
                 </span>

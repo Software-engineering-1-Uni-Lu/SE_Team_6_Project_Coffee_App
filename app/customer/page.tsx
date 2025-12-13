@@ -249,11 +249,11 @@ export default async function CustomerDashboardPage() {
    * This creates a seamless experience where users always land on the
    * correct dashboard regardless of how they accessed the URL.
    */
-  const role = getUserRole(user);
+  const role = await getUserRole(user.id);
 
   if (role !== "customer") {
     // Redirect to appropriate dashboard based on role
-    const redirectPath = getRedirectPath(user);
+    const redirectPath = await getRedirectPath(user);
     redirect(redirectPath);
   }
 

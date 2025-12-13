@@ -325,12 +325,12 @@ export default async function AdminDashboardPage() {
   /**
    * ROLE AUTHORIZATION CHECK
    *
-   * This page is for admins ONLY.
+   * This page is for admins and managers ONLY.
    * Staff and customers are redirected to their dashboards.
    */
-  const role = getUserRole(user);
+  const role = await getUserRole(user.id);
 
-  if (role !== "admin") {
+  if (role !== "admin" && role !== "manager") {
     // Redirect based on role
     if (role === "staff") {
       redirect("/staff");
