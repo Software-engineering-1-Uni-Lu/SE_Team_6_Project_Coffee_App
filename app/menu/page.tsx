@@ -65,7 +65,36 @@ export default function MenuPage() {
 
   return (
     <main className="container mx-auto px-4 py-8">
-      <header className="mb-8"></header>
+      <header className="mb-8">
+        <h1 className="mb-4 text-4xl font-bold text-[hsl(25,35%,25%)]">Menu</h1>
+
+        {/* Category filter */}
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setSelectedCategory(null)}
+            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+              selectedCategory === null
+                ? "bg-[hsl(25,35%,25%)] text-white"
+                : "bg-[hsl(35,20%,95%)] text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,90%)]"
+            }`}
+          >
+            All Items
+          </button>
+          {categories.map((category) => (
+            <button
+              key={category.id}
+              onClick={() => setSelectedCategory(category.id)}
+              className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                selectedCategory === category.id
+                  ? "bg-[hsl(25,35%,25%)] text-white"
+                  : "bg-[hsl(35,20%,95%)] text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,90%)]"
+              }`}
+            >
+              {category.name}
+            </button>
+          ))}
+        </div>
+      </header>
 
       {/* Loading state */}
       {loading && (
