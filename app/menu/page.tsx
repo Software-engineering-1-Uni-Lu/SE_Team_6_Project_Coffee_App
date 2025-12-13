@@ -6,6 +6,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { createClient } from "@/src/integrations/supabase/client";
 import type { MenuItem, Category } from "@/src/types/menu";
 
@@ -141,12 +142,14 @@ export default function MenuPage() {
               className="overflow-hidden rounded-lg border border-[hsl(35,20%,90%)] bg-white shadow-sm transition-shadow hover:shadow-md"
             >
               {/* Item image */}
-              <div className="aspect-[4/3] w-full overflow-hidden bg-[hsl(35,20%,95%)]">
+              <div className="relative aspect-[4/3] w-full overflow-hidden bg-[hsl(35,20%,95%)]">
                 {item.image_url ? (
-                  <img
+                  <Image
                     src={item.image_url}
                     alt={item.name}
-                    className="h-full w-full object-cover"
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
                   />
                 ) : (
                   <div className="flex h-full items-center justify-center text-[hsl(25,35%,45%)]">
