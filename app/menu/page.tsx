@@ -66,6 +66,137 @@ export default function MenuPage() {
   return (
     <main className="container mx-auto px-4 py-8">
       <header className="mb-8"></header>
+
+      {/* Loading state */}
+      {loading && (
+        <div className="flex min-h-[400px] items-center justify-center">
+          <div className="text-center">
+            <div className="mb-4 inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-[hsl(25,35%,25%)] border-r-transparent"></div>
+            <p className="text-[hsl(25,35%,25%)]">Loading menu...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Error state */}
+      {error && !loading && (
+        <div className="flex min-h-[400px] items-center justify-center">
+          <div className="rounded-lg bg-red-50 p-6 text-center">
+            <p className="mb-2 text-lg font-semibold text-red-800">{error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-4 rounded-md bg-red-600 px-4 py-2 text-white transition-colors hover:bg-red-700"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!loading && !error && filteredItems.length === 0 && (
+        <div className="flex min-h-[400px] items-center justify-center">
+          <div className="text-center">
+            <p className="text-lg text-[hsl(25,35%,25%)]">
+              No items available in this category.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Menu items grid */}
+      {!loading && !error && filteredItems.length > 0 && (
+        <section className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {filteredItems.map((item) => (
+            <article
+              key={item.id}
+              className="overflow-hidden rounded-lg border border-[hsl(35,20%,90%)] bg-white shadow-sm transition-shadow hover:shadow-md"
+            >
+              {/* Item image */}
+              <div className="aspect-[4/3] w-full overflow-hidden bg-[hsl(35,20%,95%)]">
+                {item.image_url ? (
+                  <img
+                    src={item.image_url}
+                    alt={item.name}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-[hsl(25,35%,45%)]">
+                    <span className="text-4xl">☕</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Item details */}
+              <div className="p-4">
+                <div className="mb-2 flex items-start justify-between">
+                  <h3 className="text-lg font-semibold text-[hsl(25,35%,25%)]">
+                    {item.name}
+                  </h3>
+                  <span className="text-lg font-bold text-[hsl(25,35%,25%)]">
+                    {formatPrice(item.price_cents)}
+                  </span>
+                </div>
+
+                {item.description && (
+                  <p className="mb-3 text-sm text-[hsl(25,35%,45%)]">
+                    {item.description}
+                  </p>
+                )}
+
+                {/* Dietary tags */}
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {item.vegan && (
+                    <span className="rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800">
+                      Vegan
+                    </span>
+                  )}
+                  {item.vegetarian && !item.vegan && (
+                    <span className="rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800">
+                      Vegetarian
+                    </span>
+                  )}
+                  {item.allergens && item.allergens.length > 0 && (
+                    <span className="rounded-full bg-orange-100 px-2 py-1 text-xs font-medium text-orange-800">
+                      Contains: {item.allergens.join(", ")}
+                    </span>
+                  )}
+                </div>
+
+                {/* Availability indicator */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={`h-2 w-2 rounded-full ${
+                        item.is_available_now ? "bg-green-500" : "bg-gray-400"
+                      }`}
+                    ></div>
+                    <span
+                      className={`text-xs font-medium ${
+                        item.is_available_now
+                          ? "text-green-700"
+                          : "text-gray-500"
+                      }`}
+                    >
+                      {item.is_available_now ? "Available" : "Unavailable"}
+                    </span>
+                  </div>
+
+                  <button
+                    disabled={!item.is_available_now}
+                    className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                      item.is_available_now
+                        ? "bg-[hsl(25,35%,25%)] text-white hover:bg-[hsl(25,40%,15%)]"
+                        : "cursor-not-allowed bg-gray-300 text-gray-500"
+                    }`}
+                  >
+                    Add to Cart
+                  </button>
+                </div>
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
     </main>
   );
 }
