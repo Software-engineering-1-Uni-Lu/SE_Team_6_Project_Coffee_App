@@ -37,3 +37,5 @@ next-env.d.ts
 
 # instruction files
 .instructions/
+
+CLAUDE.md
