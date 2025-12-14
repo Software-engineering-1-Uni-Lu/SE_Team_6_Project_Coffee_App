@@ -287,9 +287,7 @@
  * - [ ] Accessibility (WCAG 2.1 AA compliance)
  */
 
-import { redirect } from "next/navigation";
-import { createClient } from "@/src/integrations/supabase/server";
-import { getCurrentUser, getUserRole, isBlocked } from "@/src/lib/auth";
+// No imports needed - middleware handles all auth
 
 /**
  * Admin Dashboard Page (Server Component)
@@ -302,50 +300,32 @@ import { getCurrentUser, getUserRole, isBlocked } from "@/src/lib/auth";
  */
 export default async function AdminDashboardPage() {
   /**
-   * AUTHENTICATION CHECK
+   * ============================================================================
+   * AUTHENTICATION & AUTHORIZATION:
+   * ============================================================================
    *
-   * Get current user from server-side session.
-   * If no user, middleware should have redirected, but we verify again.
-   */
-  const user = await getCurrentUser();
-
-  if (!user) {
-    redirect("/auth/login");
-  }
-
-  /**
-   * BLOCKED USER CHECK
+   * The middleware (middleware.ts) already handles:
+   * - User authentication check (redirects to /auth/login if not logged in)
+   * - Role verification (only admin/manager can access this page)
+   * - Blocked user check (redirects to /blocked)
    *
-   * Even admins can be blocked (by other admins).
-   */
-  if (isBlocked(user)) {
-    redirect("/blocked");
-  }
-
-  /**
-   * ROLE AUTHORIZATION CHECK
+   * If this component is running, the user is guaranteed to be:
+   * - Authenticated ✅
+   * - Admin or Manager role ✅
+   * - Not blocked ✅
    *
-   * This page is for admins and managers ONLY.
-   * Staff and customers are redirected to their dashboards.
+   * We don't need to duplicate these checks here. The middleware is the
+   * authoritative gatekeeper.
+   * ============================================================================
    */
-  const role = await getUserRole(user.id);
-
-  if (role !== "admin" && role !== "manager") {
-    // Redirect based on role
-    if (role === "staff") {
-      redirect("/staff");
-    } else {
-      redirect("/customer");
-    }
-  }
 
   /**
    * ========================================================================
-   * UI DEVELOPER: Replace content below this line
+   * UI DEVELOPER: Build your admin dashboard here
    * ========================================================================
    *
-   * KEEP THE ABOVE: Authentication and role checks are production-ready
-   * REPLACE BELOW: This is placeholder UI only
+   * This page is ONLY accessible to authenticated admin/manager users.
+   * The middleware guarantees this, so you can focus on building the UI.
    *
    * Guidelines:
    * - Fetch system-wide data here (all orders, user counts, revenue)
@@ -374,9 +354,9 @@ export default async function AdminDashboardPage() {
             </div>
             <div className="flex items-center gap-4">
               <span className="text-sm text-muted-foreground">
-                Welcome, {user.user_metadata?.full_name || user.email}
+                Admin Dashboard
               </span>
-              {/* TODO: Add logout button component here */}
+              {/* User info is shown in the navbar */}
             </div>
           </div>
         </div>
@@ -471,17 +451,28 @@ export default async function AdminDashboardPage() {
               <h2 className="mb-4 text-xl font-semibold text-card-foreground">
                 Quick Actions
               </h2>
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  • View Staff Dashboard → /staff
+              <div className="space-y-3">
+                <a
+                  href="/admin/staff"
+                  className="block rounded-md border border-border bg-background px-4 py-3 text-sm font-medium text-foreground hover:bg-muted"
+                >
+                  <span className="mr-2">👥</span>
+                  Manage Staff & Invite Codes
+                </a>
+                <a
+                  href="/staff"
+                  className="block rounded-md border border-border bg-background px-4 py-3 text-sm font-medium text-foreground hover:bg-muted"
+                >
+                  <span className="mr-2">📋</span>
+                  View Staff Dashboard
+                </a>
+                <p className="px-4 py-3 text-sm text-muted-foreground">
+                  • Generate Reports (Coming Soon)
                 </p>
-                <p className="text-sm text-muted-foreground">
-                  • Generate Reports
+                <p className="px-4 py-3 text-sm text-muted-foreground">
+                  • Export Data (Coming Soon)
                 </p>
-                <p className="text-sm text-muted-foreground">• Export Data</p>
-                <p className="text-sm text-muted-foreground">• System Backup</p>
               </div>
-              {/* TODO: Add actual action buttons */}
             </div>
           </div>
 
