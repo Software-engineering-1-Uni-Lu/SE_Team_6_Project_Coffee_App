@@ -166,6 +166,7 @@ export default function CheckoutPage() {
     setIsSubmitting(true);
 
     try {
+<<<<<<< HEAD
       // Prepare order items in the format expected by the database
       const orderItems = items.map((item) => ({
         productId: item.productId,
@@ -346,14 +347,89 @@ export default function CheckoutPage() {
         return;
       }
 
+=======
+      // Prepare order data
+      const orderData = {
+        customer_id: user?.id || null, // null for guest orders
+        guest_name: user ? null : formData.name || null, // Only for guests
+        guest_email: user ? null : formData.email || null, // Only for guests
+        status: "pending" as const,
+        items: items.map((item) => ({
+          product_id: item.productId,
+          name: item.name,
+          quantity: item.quantity,
+          price_cents: item.price,
+          modifiers: item.modifiers || [],
+        })),
+        subtotal_cents: netPrice,
+        tax_cents: tax,
+        total_cents: total,
+        payment_method: paymentMethod,
+        payment_status: paymentMethod === "card" ? "paid" : "unpaid",
+        points_earned: 0,
+        points_redeemed: 0,
+      };
+
+      // Debug logging - check actual session
+      const { data: sessionData } = await supabase.auth.getSession();
+      console.log("=== ORDER SUBMISSION DEBUG ===");
+      console.log("User authenticated:", !!user);
+      console.log("User ID:", user?.id);
+      console.log("Active session:", !!sessionData.session);
+      console.log("Session user:", sessionData.session?.user?.id);
+      console.log("Guest name:", orderData.guest_name);
+      console.log("Guest email:", orderData.guest_email);
+      console.log("Full order data:", orderData);
+      console.log("=============================");
+
+      // For guest orders, ensure we're truly anonymous
+      if (!user && sessionData.session) {
+        console.warn("⚠️ Guest order but session exists! Signing out...");
+        await supabase.auth.signOut();
+      }
+
+      // Create order in Supabase
+      const { data: createdOrder, error: orderError } = await supabase
+        .from("orders")
+        .insert(orderData)
+        .select()
+        .single();
+
+      if (orderError) {
+        console.error("=== ORDER ERROR ===");
+        console.error("Error details:", orderError);
+        console.error("Error message:", orderError.message);
+        console.error("Error code:", orderError.code);
+        console.error("==================");
+        throw new Error(orderError.message);
+      }
+
+      if (!createdOrder) {
+        throw new Error("Order was not created");
+      }
+
+      console.log("Order created successfully:", createdOrder);
+
+      // Show success message
+>>>>>>> d2a5700 (feat: added submit order via supabase, error and succes of payment handling, and redirection to confirm page, CSA 101,102,103)
       toast.success("Order placed successfully!");
 
-      // Clear cart and redirect
+      // Clear cart
       await clearCart();
+<<<<<<< HEAD
       router.push(`/order-confirmation/${result.order.id}`);
+=======
+
+      // Redirect to order confirmation page
+      router.push(`/order-confirmation/${createdOrder.id}`);
+>>>>>>> d2a5700 (feat: added submit order via supabase, error and succes of payment handling, and redirection to confirm page, CSA 101,102,103)
     } catch (error) {
       console.error("Error placing order:", error);
-      toast.error("Failed to place order. Please try again.");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to place order. Please try again."
+      );
     } finally {
       setIsSubmitting(false);
     }
