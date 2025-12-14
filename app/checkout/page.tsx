@@ -1,6 +1,7 @@
 /**
  * Purpose: Checkout page for completing purchases.
  * Allows customers to finalize their order and make payment.
+ * Supports both authenticated users and guest orders.
  */
 
 "use client";
@@ -8,58 +9,111 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useCart } from "@/src/hooks/use-cart";
+import { useUser } from "@/src/hooks/useUser";
 import { formatPrice } from "@/src/lib/cart-utils";
 import { createClient } from "@/src/integrations/supabase/client";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { toast } from "sonner";
 
 const TAX_RATE = 0.1; // 10% tax rate
 
+// Base checkout schema with optional guest fields
+const baseCheckoutSchema = z.object({
+  guest_name: z.string().optional(),
+  guest_email: z.string().email().optional().or(z.literal("")),
+  paymentMethod: z.enum(["card", "cash"]),
+  cardNumber: z.string().optional(),
+  cardName: z.string().optional(),
+  expiry: z.string().optional(),
+  cvc: z.string().optional(),
+});
+
+// Refined schema that validates based on payment method
+const checkoutSchema = baseCheckoutSchema.refine(
+  (data) => {
+    // If card payment, require all card fields
+    if (data.paymentMethod === "card") {
+      const cardNumberDigits = data.cardNumber?.replace(/\s/g, "") || "";
+      if (cardNumberDigits.length !== 16) {
+        return false;
+      }
+      if (!data.cardName?.trim()) {
+        return false;
+      }
+      const expiryRegex = /^(0[1-9]|1[0-2])\/\d{2}$/;
+      if (!expiryRegex.test(data.expiry || "")) {
+        return false;
+      }
+      // Check if card is not expired
+      const [month, year] = (data.expiry || "").split("/");
+      if (month && year) {
+        const expiryDate = new Date(2000 + parseInt(year), parseInt(month) - 1);
+        const now = new Date();
+        if (expiryDate < now) {
+          return false;
+        }
+      }
+      if (!data.cvc || data.cvc.length !== 3) {
+        return false;
+      }
+    }
+    return true;
+  },
+  {
+    message: "Please complete all card details correctly",
+    path: ["cardNumber"],
+  }
+);
+
+type CheckoutFormData = z.infer<typeof checkoutSchema>;
+
 export default function CheckoutPage() {
   const router = useRouter();
   const { items, totalPrice, isLoading: cartLoading, clearCart } = useCart();
+  const { user, loading: userLoading } = useUser();
   const supabase = createClient();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [user, setUser] = useState<{ email?: string; id?: string } | null>(
-    null
-  );
-
-  // Form state
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-  });
-
-  // Payment state
   const [paymentMethod, setPaymentMethod] = useState<"card" | "cash">("card");
-  const [cardDetails, setCardDetails] = useState({
-    number: "",
-    name: "",
-    expiry: "",
-    cvc: "",
-  });
 
   // Calculate totals (EU VAT logic - prices include tax)
   const total = totalPrice; // Total stays the same as cart
   const netPrice = Math.round(total / (1 + TAX_RATE)); // Price without VAT
   const tax = total - netPrice; // VAT amount included in the price
 
-  // Check authentication status
-  useEffect(() => {
-    async function checkAuth() {
-      const {
-        data: { user: authUser },
-      } = await supabase.auth.getUser();
-      setUser(authUser);
+  const isGuest = !user;
 
-      // Pre-fill email if authenticated
-      if (authUser?.email) {
-        setFormData((prev) => ({ ...prev, email: authUser.email! }));
-      }
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    watch,
+    setValue,
+  } = useForm<CheckoutFormData>({
+    resolver: zodResolver(checkoutSchema),
+    defaultValues: {
+      guest_name: "",
+      guest_email: "",
+      paymentMethod: "card",
+      cardNumber: "",
+      cardName: "",
+      expiry: "",
+      cvc: "",
+    },
+  });
+
+  // Watch payment method to update state
+  const watchedPaymentMethod = watch("paymentMethod");
+
+  useEffect(() => {
+    if (watchedPaymentMethod) {
+      setPaymentMethod(watchedPaymentMethod);
     }
-    checkAuth();
-  }, []);
+  }, [watchedPaymentMethod]);
 
   // Redirect if cart is empty
   useEffect(() => {
@@ -68,93 +122,43 @@ export default function CheckoutPage() {
     }
   }, [cartLoading, items.length, router]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+  // Format card number input
+  const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\s/g, "");
+    value = value.replace(/(\d{4})/g, "$1 ").trim();
+    value = value.slice(0, 19); // Limit to 16 digits + 3 spaces
+    setValue("cardNumber", value);
   };
 
-  const handleCardInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    let formattedValue = value;
-
-    // Format card number with spaces
-    if (name === "number") {
-      formattedValue = value
-        .replace(/\s/g, "")
-        .replace(/(\d{4})/g, "$1 ")
-        .trim();
-      formattedValue = formattedValue.slice(0, 19); // Limit to 16 digits + 3 spaces
+  // Format expiry input
+  const handleExpiryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, "");
+    if (value.length >= 2) {
+      value = value.slice(0, 2) + "/" + value.slice(2, 4);
     }
-
-    // Format expiry as MM/YY
-    if (name === "expiry") {
-      formattedValue = value.replace(/\D/g, "");
-      if (formattedValue.length >= 2) {
-        formattedValue =
-          formattedValue.slice(0, 2) + "/" + formattedValue.slice(2, 4);
-      }
-      formattedValue = formattedValue.slice(0, 5); // Limit to MM/YY
-    }
-
-    // Limit CVC to 3 digits
-    if (name === "cvc") {
-      formattedValue = value.replace(/\D/g, "").slice(0, 3);
-    }
-
-    setCardDetails((prev) => ({ ...prev, [name]: formattedValue }));
+    value = value.slice(0, 5); // Limit to MM/YY
+    setValue("expiry", value);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Format CVC input
+  const handleCvcChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, "").slice(0, 3);
+    setValue("cvc", value);
+  };
 
-    // Validation - Contact Information
-    if (!formData.name.trim()) {
-      toast.error("Please enter your name");
-      return;
-    }
-    if (!formData.email.trim()) {
-      toast.error("Please enter your email");
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      toast.error("Please enter a valid email address");
-      return;
-    }
-
-    // Validation - Payment Method
-    if (paymentMethod === "card") {
-      // Card number validation (16 digits)
-      const cardNumberDigits = cardDetails.number.replace(/\s/g, "");
-      if (!cardNumberDigits || cardNumberDigits.length !== 16) {
-        toast.error("Please enter a valid 16-digit card number");
+  const onSubmit = async (data: CheckoutFormData) => {
+    // Validate guest fields for guest checkout
+    if (isGuest) {
+      if (!data.guest_name || !data.guest_name.trim()) {
+        toast.error("Please enter your name");
         return;
       }
-
-      // Cardholder name validation
-      if (!cardDetails.name.trim()) {
-        toast.error("Please enter the cardholder name");
+      if (!data.guest_email || !data.guest_email.trim()) {
+        toast.error("Please enter your email address");
         return;
       }
-
-      // Expiry validation (MM/YY format and not expired)
-      const expiryRegex = /^(0[1-9]|1[0-2])\/\d{2}$/;
-      if (!expiryRegex.test(cardDetails.expiry)) {
-        toast.error("Please enter a valid expiry date (MM/YY)");
-        return;
-      }
-
-      // Check if card is not expired
-      const [month, year] = cardDetails.expiry.split("/");
-      const expiryDate = new Date(2000 + parseInt(year), parseInt(month) - 1);
-      const now = new Date();
-      if (expiryDate < now) {
-        toast.error("Card has expired");
-        return;
-      }
-
-      // CVC validation (3 digits)
-      if (!cardDetails.cvc || cardDetails.cvc.length !== 3) {
-        toast.error("Please enter a valid 3-digit CVC");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.guest_email)) {
+        toast.error("Please enter a valid email address");
         return;
       }
     }
@@ -162,20 +166,191 @@ export default function CheckoutPage() {
     setIsSubmitting(true);
 
     try {
-      // TODO: Implement order creation and payment processing
-      console.log("Order details:", {
-        contact: formData,
-        paymentMethod,
-        ...(paymentMethod === "card" && { cardDetails }),
-        items,
-        total,
+      // Prepare order items in the format expected by the database
+      const orderItems = items.map((item) => ({
+        productId: item.productId,
+        name: item.name,
+        price: item.price,
+        basePrice: item.basePrice,
+        quantity: item.quantity,
+        modifiers: item.modifiers || [],
+        imageUrl: item.imageUrl,
+      }));
+
+      // Prepare order data
+      // For authenticated users: customer_id is set, guest_name and guest_email are null
+      // For guest users: customer_id is null, guest_name and guest_email are set
+      const orderData: {
+        customer_id: string | null;
+        guest_name: string | null;
+        guest_email: string | null;
+        status: string;
+        items: typeof orderItems;
+        subtotal_cents: number;
+        tax_cents: number;
+        total_cents: number;
+        payment_method: "card" | "cash";
+        payment_status: string;
+      } = {
+        customer_id: isGuest ? null : user?.id || null,
+        guest_name: isGuest ? data.guest_name?.trim() || null : null,
+        guest_email: isGuest ? data.guest_email?.trim() || null : null,
+        status: "pending",
+        items: orderItems,
+        subtotal_cents: netPrice,
+        tax_cents: tax,
+        total_cents: total,
+        payment_method: data.paymentMethod,
+        payment_status: data.paymentMethod === "card" ? "paid" : "unpaid",
+      };
+
+      // GUEST ORDERS: Client-side only (bypass API route completely)
+      // Solution 1 from the guide: Create a fresh client with NO storage access
+      // This ensures no session can be loaded, so auth.uid() IS NULL naturally
+      if (isGuest) {
+        // Create a FRESH client instance specifically for guest orders
+        // This client has NO storage access, so it can't load any session
+        // This matches Solution 1 from the guide
+        const guestClient = createSupabaseClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+          {
+            auth: {
+              // CRITICAL: No storage access = no session can be loaded
+              storage: {
+                getItem: () => null, // Never return any stored session
+                setItem: () => {}, // Never store sessions
+                removeItem: () => {}, // Never remove
+              },
+              persistSession: false, // Don't persist sessions
+              autoRefreshToken: false, // Don't auto-refresh
+            },
+            global: {
+              // Custom fetch for anonymous requests
+              // Supabase REST API requires Authorization header for authentication
+              // BUT: When Authorization is the anon key (not a user JWT), auth.uid() IS NULL
+              fetch: (url, options = {}) => {
+                const headers = new Headers(options.headers);
+                const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+                // Ensure apikey is set (required for Supabase REST API)
+                if (!headers.has("apikey")) {
+                  headers.set("apikey", anonKey);
+                }
+
+                // CRITICAL: Set Authorization header with anon key
+                // The anon key is NOT a user JWT, so auth.uid() will be NULL
+                // But Supabase REST API needs this header for authentication
+                if (!headers.has("Authorization")) {
+                  headers.set("Authorization", `Bearer ${anonKey}`);
+                }
+
+                return fetch(url, {
+                  ...options,
+                  credentials: "omit", // CRITICAL: Don't send cookies
+                  headers,
+                });
+              },
+            },
+          }
+        );
+
+        // Verify no session exists (should be null since storage returns null)
+        const {
+          data: { session },
+        } = await guestClient.auth.getSession();
+        const {
+          data: { user },
+        } = await guestClient.auth.getUser();
+
+        if (session || user) {
+          toast.error("Please clear your browser storage and try again.");
+          return;
+        }
+
+        // Use Postgres function via RPC to create guest order
+        // This bypasses RLS issues with REST API anonymous requests
+        // The function validates auth.uid() IS NULL and all requirements
+        // Returns the full order as JSONB (bypasses RLS for SELECT too)
+        const { data: orderData_result, error: rpcError } =
+          await guestClient.rpc("create_guest_order", {
+            p_guest_name: orderData.guest_name,
+            p_guest_email: orderData.guest_email,
+            p_items: orderData.items,
+            p_subtotal_cents: orderData.subtotal_cents,
+            p_tax_cents: orderData.tax_cents,
+            p_total_cents: orderData.total_cents,
+            p_payment_method: orderData.payment_method,
+            p_payment_status: orderData.payment_status,
+            p_status: orderData.status,
+          });
+
+        if (rpcError) {
+          console.error("Guest order RPC error:", rpcError);
+          toast.error(
+            rpcError.message ||
+              "Failed to create guest order. Please try again."
+          );
+          return;
+        }
+
+        if (!orderData_result || !orderData_result.id) {
+          console.error("No order data returned from RPC");
+          toast.error("Failed to create order. Please try again.");
+          return;
+        }
+
+        // The function returns the full order as JSONB, so we can use it directly
+        const order = orderData_result;
+
+        toast.success("Order placed successfully!");
+
+        // Clear cart and redirect
+        await clearCart();
+        router.push(`/order-confirmation/${(order as any).id}`);
+        return;
+      }
+
+      // AUTHENTICATED ORDERS: Use API route (server-side for security)
+      const response = await fetch("/api/orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(orderData),
       });
+
+      // Check content type before parsing
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await response.text();
+        console.error("Non-JSON response from API:", text);
+        toast.error("Server error: Invalid response format. Please try again.");
+        return;
+      }
+
+      let result;
+      try {
+        result = await response.json();
+      } catch (parseError) {
+        console.error("Error parsing JSON response:", parseError);
+        toast.error(
+          "Server error: Failed to parse response. Please try again."
+        );
+        return;
+      }
+
+      if (!response.ok) {
+        console.error("Error creating order:", result.error);
+        toast.error(result.error || "Failed to place order. Please try again.");
+        return;
+      }
 
       toast.success("Order placed successfully!");
 
       // Clear cart and redirect
       await clearCart();
-      router.push("/");
+      router.push(`/order-confirmation/${result.order.id}`);
     } catch (error) {
       console.error("Error placing order:", error);
       toast.error("Failed to place order. Please try again.");
@@ -184,7 +359,7 @@ export default function CheckoutPage() {
     }
   };
 
-  if (cartLoading) {
+  if (cartLoading || userLoading) {
     return (
       <main className="container mx-auto px-4 py-8">
         <div className="flex min-h-[400px] items-center justify-center">
@@ -205,7 +380,7 @@ export default function CheckoutPage() {
         </h1>
       </header>
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit(onSubmit)}>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Checkout Form */}
           <section className="lg:col-span-2">
@@ -216,49 +391,70 @@ export default function CheckoutPage() {
                 </h2>
 
                 <div className="space-y-4">
-                  <div>
-                    <label
-                      htmlFor="name"
-                      className="mb-2 block text-sm font-medium text-[hsl(25,35%,25%)]"
-                    >
-                      Full Name
-                    </label>
-                    <input
-                      type="text"
-                      id="name"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleInputChange}
-                      required
-                      className="w-full rounded-md border border-[hsl(35,20%,90%)] px-4 py-2 text-[hsl(25,35%,25%)] transition-colors focus:border-[hsl(25,35%,25%)] focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)] focus:ring-opacity-20"
-                      placeholder="John Doe"
-                    />
-                  </div>
+                  {/* Guest Name Field - Only show for guests */}
+                  {isGuest && (
+                    <div>
+                      <label
+                        htmlFor="guest_name"
+                        className="mb-2 block text-sm font-medium text-[hsl(25,35%,25%)]"
+                      >
+                        Full Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        id="guest_name"
+                        {...register("guest_name")}
+                        className={`w-full rounded-md border px-4 py-2 text-[hsl(25,35%,25%)] transition-colors focus:outline-none focus:ring-2 focus:ring-opacity-20 ${
+                          errors.guest_name
+                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                            : "border-[hsl(35,20%,90%)] focus:border-[hsl(25,35%,25%)] focus:ring-[hsl(25,35%,25%)]"
+                        }`}
+                        placeholder="John Doe"
+                      />
+                      {errors.guest_name && (
+                        <p className="mt-1 text-xs text-red-500">
+                          {errors.guest_name.message}
+                        </p>
+                      )}
+                    </div>
+                  )}
 
-                  <div>
-                    <label
-                      htmlFor="email"
-                      className="mb-2 block text-sm font-medium text-[hsl(25,35%,25%)]"
-                    >
-                      Email Address
-                    </label>
-                    <input
-                      type="email"
-                      id="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleInputChange}
-                      required
-                      disabled={!!user?.email}
-                      className="w-full rounded-md border border-[hsl(35,20%,90%)] px-4 py-2 text-[hsl(25,35%,25%)] transition-colors focus:border-[hsl(25,35%,25%)] focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)] focus:ring-opacity-20 disabled:cursor-not-allowed disabled:bg-[hsl(35,20%,95%)]"
-                      placeholder="john@example.com"
-                    />
-                    {user?.email && (
-                      <p className="mt-1 text-xs text-[hsl(25,35%,45%)]">
-                        Using email from your account
+                  {/* Guest Email Field - Only show for guests */}
+                  {isGuest && (
+                    <div>
+                      <label
+                        htmlFor="guest_email"
+                        className="mb-2 block text-sm font-medium text-[hsl(25,35%,25%)]"
+                      >
+                        Email Address <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        id="guest_email"
+                        {...register("guest_email")}
+                        className={`w-full rounded-md border px-4 py-2 text-[hsl(25,35%,25%)] transition-colors focus:outline-none focus:ring-2 focus:ring-opacity-20 ${
+                          errors.guest_email
+                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                            : "border-[hsl(35,20%,90%)] focus:border-[hsl(25,35%,25%)] focus:ring-[hsl(25,35%,25%)]"
+                        }`}
+                        placeholder="john@example.com"
+                      />
+                      {errors.guest_email && (
+                        <p className="mt-1 text-xs text-red-500">
+                          {errors.guest_email.message}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Authenticated User Info */}
+                  {!isGuest && user && (
+                    <div className="rounded-lg bg-[hsl(35,20%,95%)] p-4">
+                      <p className="text-sm font-medium text-[hsl(25,35%,25%)]">
+                        Ordering as: {user.email}
                       </p>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -274,7 +470,10 @@ export default function CheckoutPage() {
                 <div className="mb-6 flex gap-4">
                   <button
                     type="button"
-                    onClick={() => setPaymentMethod("card")}
+                    onClick={() => {
+                      setPaymentMethod("card");
+                      setValue("paymentMethod", "card");
+                    }}
                     className={`flex-1 rounded-md border-2 px-4 py-3 text-sm font-medium transition-colors ${
                       paymentMethod === "card"
                         ? "border-[hsl(25,35%,25%)] bg-[hsl(25,35%,25%)] text-white"
@@ -285,7 +484,10 @@ export default function CheckoutPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setPaymentMethod("cash")}
+                    onClick={() => {
+                      setPaymentMethod("cash");
+                      setValue("paymentMethod", "cash");
+                    }}
                     className={`flex-1 rounded-md border-2 px-4 py-3 text-sm font-medium transition-colors ${
                       paymentMethod === "cash"
                         ? "border-[hsl(25,35%,25%)] bg-[hsl(25,35%,25%)] text-white"
@@ -296,6 +498,12 @@ export default function CheckoutPage() {
                   </button>
                 </div>
 
+                <input
+                  type="hidden"
+                  {...register("paymentMethod")}
+                  value={paymentMethod}
+                />
+
                 {/* Card Payment Form */}
                 {paymentMethod === "card" && (
                   <div className="space-y-4">
@@ -304,18 +512,25 @@ export default function CheckoutPage() {
                         htmlFor="cardNumber"
                         className="mb-2 block text-sm font-medium text-[hsl(25,35%,25%)]"
                       >
-                        Card Number
+                        Card Number <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
                         id="cardNumber"
-                        name="number"
-                        value={cardDetails.number}
-                        onChange={handleCardInputChange}
-                        required
-                        className="w-full rounded-md border border-[hsl(35,20%,90%)] px-4 py-2 text-[hsl(25,35%,25%)] transition-colors focus:border-[hsl(25,35%,25%)] focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)] focus:ring-opacity-20"
+                        {...register("cardNumber")}
+                        onChange={handleCardNumberChange}
+                        className={`w-full rounded-md border px-4 py-2 text-[hsl(25,35%,25%)] transition-colors focus:outline-none focus:ring-2 focus:ring-opacity-20 ${
+                          errors.cardNumber
+                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                            : "border-[hsl(35,20%,90%)] focus:border-[hsl(25,35%,25%)] focus:ring-[hsl(25,35%,25%)]"
+                        }`}
                         placeholder="1234 5678 9012 3456"
                       />
+                      {errors.cardNumber && (
+                        <p className="mt-1 text-xs text-red-500">
+                          {errors.cardNumber.message}
+                        </p>
+                      )}
                     </div>
 
                     <div>
@@ -323,18 +538,24 @@ export default function CheckoutPage() {
                         htmlFor="cardName"
                         className="mb-2 block text-sm font-medium text-[hsl(25,35%,25%)]"
                       >
-                        Cardholder Name
+                        Cardholder Name <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
                         id="cardName"
-                        name="name"
-                        value={cardDetails.name}
-                        onChange={handleCardInputChange}
-                        required
-                        className="w-full rounded-md border border-[hsl(35,20%,90%)] px-4 py-2 text-[hsl(25,35%,25%)] transition-colors focus:border-[hsl(25,35%,25%)] focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)] focus:ring-opacity-20"
+                        {...register("cardName")}
+                        className={`w-full rounded-md border px-4 py-2 text-[hsl(25,35%,25%)] transition-colors focus:outline-none focus:ring-2 focus:ring-opacity-20 ${
+                          errors.cardName
+                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                            : "border-[hsl(35,20%,90%)] focus:border-[hsl(25,35%,25%)] focus:ring-[hsl(25,35%,25%)]"
+                        }`}
                         placeholder="John Doe"
                       />
+                      {errors.cardName && (
+                        <p className="mt-1 text-xs text-red-500">
+                          {errors.cardName.message}
+                        </p>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -343,36 +564,50 @@ export default function CheckoutPage() {
                           htmlFor="expiry"
                           className="mb-2 block text-sm font-medium text-[hsl(25,35%,25%)]"
                         >
-                          Expiry Date
+                          Expiry Date <span className="text-red-500">*</span>
                         </label>
                         <input
                           type="text"
                           id="expiry"
-                          name="expiry"
-                          value={cardDetails.expiry}
-                          onChange={handleCardInputChange}
-                          required
-                          className="w-full rounded-md border border-[hsl(35,20%,90%)] px-4 py-2 text-[hsl(25,35%,25%)] transition-colors focus:border-[hsl(25,35%,25%)] focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)] focus:ring-opacity-20"
+                          {...register("expiry")}
+                          onChange={handleExpiryChange}
+                          className={`w-full rounded-md border px-4 py-2 text-[hsl(25,35%,25%)] transition-colors focus:outline-none focus:ring-2 focus:ring-opacity-20 ${
+                            errors.expiry
+                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                              : "border-[hsl(35,20%,90%)] focus:border-[hsl(25,35%,25%)] focus:ring-[hsl(25,35%,25%)]"
+                          }`}
                           placeholder="MM/YY"
                         />
+                        {errors.expiry && (
+                          <p className="mt-1 text-xs text-red-500">
+                            {errors.expiry.message}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <label
                           htmlFor="cvc"
                           className="mb-2 block text-sm font-medium text-[hsl(25,35%,25%)]"
                         >
-                          CVC
+                          CVC <span className="text-red-500">*</span>
                         </label>
                         <input
                           type="text"
                           id="cvc"
-                          name="cvc"
-                          value={cardDetails.cvc}
-                          onChange={handleCardInputChange}
-                          required
-                          className="w-full rounded-md border border-[hsl(35,20%,90%)] px-4 py-2 text-[hsl(25,35%,25%)] transition-colors focus:border-[hsl(25,35%,25%)] focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)] focus:ring-opacity-20"
+                          {...register("cvc")}
+                          onChange={handleCvcChange}
+                          className={`w-full rounded-md border px-4 py-2 text-[hsl(25,35%,25%)] transition-colors focus:outline-none focus:ring-2 focus:ring-opacity-20 ${
+                            errors.cvc
+                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                              : "border-[hsl(35,20%,90%)] focus:border-[hsl(25,35%,25%)] focus:ring-[hsl(25,35%,25%)]"
+                          }`}
                           placeholder="123"
                         />
+                        {errors.cvc && (
+                          <p className="mt-1 text-xs text-red-500">
+                            {errors.cvc.message}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
