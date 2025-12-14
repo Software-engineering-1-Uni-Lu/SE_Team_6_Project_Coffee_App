@@ -9,6 +9,8 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { createClient } from "@/src/integrations/supabase/client";
 import type { MenuItem, Category } from "@/src/types/menu";
+import { useCart } from "@/src/hooks/use-cart";
+import { toast } from "sonner";
 
 export default function MenuPage() {
   const [items, setItems] = useState<MenuItem[]>([]);
@@ -16,6 +18,9 @@ export default function MenuPage() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [addingToCart, setAddingToCart] = useState<string | null>(null);
+
+  const { addItem } = useCart();
 
   useEffect(() => {
     async function fetchData() {
@@ -62,6 +67,30 @@ export default function MenuPage() {
   // Format price from cents to euros
   const formatPrice = (cents: number) => {
     return `€${(cents / 100).toFixed(2)}`;
+  };
+
+  // Handle add to cart
+  const handleAddToCart = async (item: MenuItem) => {
+    if (!item.is_available_now) return;
+
+    setAddingToCart(item.id);
+    try {
+      await addItem({
+        productId: item.id,
+        name: item.name,
+        price: item.price_cents,
+        basePrice: item.price_cents,
+        modifiers: [], // No modifiers for now
+        imageUrl: item.image_url,
+      });
+
+      toast.success(`${item.name} added to cart!`);
+    } catch (error) {
+      console.error("Error adding to cart:", error);
+      toast.error("Failed to add item to cart");
+    } finally {
+      setAddingToCart(null);
+    }
   };
 
   return (
@@ -214,14 +243,17 @@ export default function MenuPage() {
                   </div>
 
                   <button
-                    disabled={!item.is_available_now}
+                    disabled={
+                      !item.is_available_now || addingToCart === item.id
+                    }
+                    onClick={() => handleAddToCart(item)}
                     className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-                      item.is_available_now
+                      item.is_available_now && addingToCart !== item.id
                         ? "bg-[hsl(25,35%,25%)] text-white hover:bg-[hsl(25,40%,15%)]"
                         : "cursor-not-allowed bg-gray-300 text-gray-500"
                     }`}
                   >
-                    Add to Cart
+                    {addingToCart === item.id ? "Adding..." : "Add to Cart"}
                   </button>
                 </div>
               </div>

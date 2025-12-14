@@ -8,6 +8,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useCart } from "@/src/hooks/use-cart";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/src/hooks/useUser";
 
@@ -16,6 +17,7 @@ interface NavbarProps {
 }
 
 export function Navbar({ onCartOpen }: NavbarProps) {
+  const { totalItems } = useCart();
   const { user, role, loading } = useUser();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
@@ -132,9 +134,14 @@ export function Navbar({ onCartOpen }: NavbarProps) {
           <div className="flex items-center gap-4">
             <button
               onClick={onCartOpen}
-              className="px-4 py-2 text-sm font-medium text-[hsl(25,35%,25%)] transition-colors hover:text-[hsl(25,40%,15%)]"
+              className="relative px-4 py-2 text-sm font-medium text-[hsl(25,35%,25%)] transition-colors hover:text-[hsl(25,40%,15%)]"
             >
               Cart
+              {totalItems > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[hsl(25,35%,25%)] text-xs text-white">
+                  {totalItems}
+                </span>
+              )}
             </button>
 
             <Link

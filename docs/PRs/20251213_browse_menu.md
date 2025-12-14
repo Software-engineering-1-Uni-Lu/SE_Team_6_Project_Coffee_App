@@ -1,6 +1,6 @@
 # Pull Request: Browse Menu Feature
 
-**Branch:** `feature/browse-menu`  
+**Branch:** `feature/customer-foundation/browse-menu`  
 **Author:** Federico Newton
 **Date:** December 13, 2025
 
