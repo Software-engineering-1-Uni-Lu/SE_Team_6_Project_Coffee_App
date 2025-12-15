@@ -20,6 +20,8 @@ export interface MenuItem {
   availability_end: string | null;
   available_days: string[] | null;
   is_available_now?: boolean;
+  stock_quantity: number;
+  low_stock_threshold: number;
   created_at: string;
   updated_at: string;
 }
