@@ -44,12 +44,15 @@ export function Navbar({ onCartOpen }: NavbarProps) {
             </Link>
 
             <div className="hidden items-center gap-6 md:flex">
-              <Link
-                href="/menu"
-                className="text-sm font-medium text-[hsl(25,35%,25%)] transition-colors hover:text-[hsl(25,40%,15%)]"
-              >
-                Menu
-              </Link>
+              {/* Menu link - only show to customers and guests */}
+              {(role === "customer" || !user) && (
+                <Link
+                  href="/menu"
+                  className="text-sm font-medium text-[hsl(25,35%,25%)] transition-colors hover:text-[hsl(25,40%,15%)]"
+                >
+                  Menu
+                </Link>
+              )}
 
               {/* Customer dropdown - only show to customers */}
               {user && role === "customer" && (
@@ -132,24 +135,29 @@ export function Navbar({ onCartOpen }: NavbarProps) {
           </div>
 
           <div className="flex items-center gap-4">
-            <button
-              onClick={onCartOpen}
-              className="relative px-4 py-2 text-sm font-medium text-[hsl(25,35%,25%)] transition-colors hover:text-[hsl(25,40%,15%)]"
-            >
-              Cart
-              {totalItems > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[hsl(25,35%,25%)] text-xs text-white">
-                  {totalItems}
-                </span>
-              )}
-            </button>
+            {/* Cart and Checkout - only show to customers and guests */}
+            {(role === "customer" || !user) && (
+              <>
+                <button
+                  onClick={onCartOpen}
+                  className="relative px-4 py-2 text-sm font-medium text-[hsl(25,35%,25%)] transition-colors hover:text-[hsl(25,40%,15%)]"
+                >
+                  Cart
+                  {totalItems > 0 && (
+                    <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[hsl(25,35%,25%)] text-xs text-white">
+                      {totalItems}
+                    </span>
+                  )}
+                </button>
 
-            <Link
-              href="/checkout"
-              className="hidden px-4 py-2 text-sm font-medium text-[hsl(25,35%,25%)] transition-colors hover:text-[hsl(25,40%,15%)] md:block"
-            >
-              Checkout
-            </Link>
+                <Link
+                  href="/checkout"
+                  className="hidden px-4 py-2 text-sm font-medium text-[hsl(25,35%,25%)] transition-colors hover:text-[hsl(25,40%,15%)] md:block"
+                >
+                  Checkout
+                </Link>
+              </>
+            )}
 
             {/* Show login/register when not authenticated */}
             {!loading && !user && (

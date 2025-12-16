@@ -1,415 +1,226 @@
 /**
- * Admin Dashboard Page - /admin
+ * Manager Dashboard Page - /admin
  *
- * ============================================================================
- * PURPOSE:
- * ============================================================================
- * This is the comprehensive management dashboard for users with the "admin" role.
- * It serves as the landing page after admin login and provides access to both
- * operational tools (like staff dashboard) AND administrative functions
- * (user management, settings, analytics).
- *
- * ============================================================================
- * USER STORIES SATISFIED:
- * ============================================================================
- * - CSA-48: Role-based access / dashboard redirect
- *   - Admins land here after login
- *   - Only accessible to users with "admin" role
- *   - Redirects non-admins to their appropriate dashboards
- *
- * ============================================================================
- * ROLE-BASED ROUTING ARCHITECTURE:
- * ============================================================================
- * This page is part of a three-tier dashboard system:
- * 1. /customer - Customer dashboard (ordering)
- * 2. /staff - Staff dashboard (operations)
- * 3. /admin - Admin dashboard (this file - management + operations)
- *
- * ROUTING FLOW:
- * - Login → Check role → Redirect to /admin (if admin)
- * - Middleware protects this route (admin only)
- * - Customers and staff attempting to access are redirected away
- *
- * ADMIN ACCESS HIERARCHY:
- * - Admins can access /admin (this page)
- * - Admins can also access /staff (operations)
- * - Admins have full system access (all features)
- *
- * ============================================================================
- * FOR UI DEVELOPERS - IMPLEMENTATION GUIDE:
- * ============================================================================
- *
- * CURRENT STATE (SCAFFOLD):
- * This page currently contains only placeholder UI. The authentication and
- * role checking logic is PRODUCTION-READY and must NOT be modified.
- *
- * WHAT TO BUILD HERE:
- * Replace the placeholder <main> content with:
- *
- * 1. **Navigation/Header:**
- *    - Logo linking to /admin
- *    - Primary nav: Dashboard, Orders, Menu, Users, Settings, Reports
- *    - Secondary nav: View as Staff (link to /staff dashboard)
- *    - User greeting with admin badge
- *    - Logout button
- *
- * 2. **Dashboard Overview (Main Content):**
- *    a) Key Metrics Cards (Top Row)
- *       - Today's revenue (total sales in cents → dollars)
- *       - Orders today (count by status)
- *       - Active users (customers online)
- *       - Staff on duty (staff members logged in)
- *
- *    b) Quick Actions Panel
- *       - Manage Menu Items → /admin/menu
- *       - Manage Users → /admin/users
- *       - View Reports → /admin/reports
- *       - System Settings → /admin/settings
- *       - Order Queue (Staff View) → /staff
- *
- *    c) Real-Time Order Monitor
- *       - Live feed of recent orders
- *       - Order status distribution chart
- *       - Peak hours analytics
- *       - Alert indicators for issues
- *
- *    d) User Management Summary
- *       - Total users by role (customers, staff, admins)
- *       - New registrations today
- *       - Blocked users count
- *       - Quick action: Block/Unblock users
- *
- *    e) System Health Indicators
- *       - Database connection status
- *       - Recent errors/issues count
- *       - Backup status
- *       - Inventory alerts (low stock items)
- *
- * 3. **Data Fetching Pattern:**
- *    ```typescript
- *    // Admin dashboard requires aggregated data
- *    const supabase = createClient();
- *
- *    // Today's orders
- *    const { count: ordersToday } = await supabase
- *      .from('orders')
- *      .select('*', { count: 'exact', head: true })
- *      .gte('created_at', startOfToday);
- *
- *    // Revenue today
- *    const { data: orders } = await supabase
- *      .from('orders')
- *      .select('total_cents')
- *      .gte('created_at', startOfToday)
- *      .eq('status', 'completed');
- *    const revenue = orders?.reduce((sum, o) => sum + o.total_cents, 0) ?? 0;
- *
- *    // User counts by role
- *    const { data: userStats } = await supabase
- *      .from('profiles')
- *      .select('id')
- *      .then(async ({ data }) => {
- *        const users = data || [];
- *        // Get user metadata from auth.users (requires service role)
- *        // Or maintain role counts in profiles table
- *      });
- *    ```
- *
- * 4. **Component Structure:**
- *    - Main page: Server Component (for auth and initial data)
- *    - Metrics cards: Server Component (static data)
- *    - Real-time monitors: Client Component (subscriptions)
- *    - Charts/graphs: Client Component (recharts or similar)
- *    - Admin action buttons: Client Component (API calls)
- *
- * 5. **Admin-Specific Features:**
- *    - User management (view, edit roles, block/unblock)
- *    - Menu management (create, edit, delete items/categories)
- *    - Settings management (operational hours, loyalty rates)
- *    - Reports and analytics (sales, popular items, trends)
- *    - Order management (view all orders, issue refunds)
- *    - Staff management (add/remove staff, assign roles)
- *    - System configuration (email templates, notifications)
- *
- * ============================================================================
- * ARCHITECTURAL CONSTRAINTS - DO NOT VIOLATE:
- * ============================================================================
- *
- * ✅ KEEP THESE:
- * - Server-side role check (getCurrentUser + getUserRole)
- * - Redirect logic for non-admins
- * - Blocked user check
- * - Import structure (@/src/...)
- *
- * ❌ DO NOT:
- * - Remove authentication checks
- * - Allow staff or customers to access admin features
- * - Bypass middleware protection
- * - Use client-side role checks as primary security
- * - Expose sensitive configuration to non-admins
- *
- * ============================================================================
- * SECURITY CONSIDERATIONS:
- * ============================================================================
- * - This page uses server-side authentication (getCurrentUser)
- * - Role is verified before rendering (getUserRole)
- * - Middleware provides first layer of defense
- * - This page provides second layer
- * - Row-Level Security (RLS) on database controls data access
- * - Admin has full access but actions are still audited
- * - Sensitive operations require additional confirmation
- *
- * RLS POLICIES TO EXPECT:
- * - orders: Admin can SELECT, UPDATE, DELETE (full access)
- * - items: Admin can INSERT, UPDATE, DELETE (full control)
- * - categories: Admin can INSERT, UPDATE, DELETE
- * - profiles: Admin can SELECT, UPDATE (for user management)
- * - settings: Admin can SELECT, UPDATE
- *
- * ADMIN PERMISSIONS:
- * ✅ Can: Everything (full system access)
- * ⚠️ Should confirm: Destructive operations (delete user, delete order, system settings changes)
- * 🔒 Audit: All admin actions should be logged
- *
- * ============================================================================
- * SUPABASE DATA FETCHING PATTERN:
- * ============================================================================
- * Admin queries often need aggregated or system-wide data:
- *
- * ```typescript
- * import { createClient } from "@/src/integrations/supabase/server";
- *
- * const supabase = createClient();
- *
- * // Get all orders with customer info
- * const { data: orders } = await supabase
- *   .from('orders')
- *   .select(`
- *     *,
- *     customer:profiles(full_name, email, phone),
- *     items:order_items(*, item:items(name))
- *   `)
- *   .order('created_at', { ascending: false })
- *   .limit(50);
- *
- * // Get user statistics
- * const { count: totalCustomers } = await supabase
- *   .from('profiles')
- *   .select('*', { count: 'exact', head: true });
- *
- * // For role-specific counts, you may need to query auth.users
- * // which requires service role key (used in API routes, not direct queries)
- * ```
- *
- * For sensitive operations, create API routes that use service role:
- * ```typescript
- * // app/api/admin/users/route.ts
- * const supabaseAdmin = createClient(); // with service role
- * const { data: users } = await supabaseAdmin.auth.admin.listUsers();
- * ```
- *
- * ============================================================================
- * FILE STRUCTURE FOR ADMIN FEATURES:
- * ============================================================================
- * Organize admin components as:
- *
- * app/admin/
- *   page.tsx          ← This file (main dashboard)
- *   menu/
- *     page.tsx        ← Menu management (items, categories)
- *     items/
- *       new/page.tsx  ← Create new menu item
- *       [id]/page.tsx ← Edit menu item
- *   users/
- *     page.tsx        ← User management (list, search)
- *     [id]/page.tsx   ← Edit user (role, block/unblock)
- *   orders/
- *     page.tsx        ← All orders (searchable, filterable)
- *     [id]/page.tsx   ← Order details with refund option
- *   reports/
- *     page.tsx        ← Analytics and reports
- *   settings/
- *     page.tsx        ← System settings
- *   layout.tsx        ← Shared admin layout (nav, sidebar)
- *
- * src/components/admin/
- *   MetricCard.tsx     ← Reusable metric display
- *   UserTable.tsx      ← User management table
- *   OrderChart.tsx     ← Order analytics chart
- *   MenuItemForm.tsx   ← Menu item create/edit form
- *   SettingsPanel.tsx  ← Settings section component
- *
- * ============================================================================
- * NAVIGATION FLOW:
- * ============================================================================
- * Admin users can access:
- * - /admin (this page) - Main admin dashboard
- * - /admin/* - All admin features
- * - /staff - Staff operational dashboard (admin helping with operations)
- * - /customer - Customer view (admin testing customer experience)
- * - /auth/profile - Own account settings
- *
- * Admin users have NO restrictions (full system access)
- *
- * ============================================================================
- * ANALYTICS & REPORTING FEATURES:
- * ============================================================================
- * Admin dashboard should display:
- * - Revenue metrics (daily, weekly, monthly)
- * - Order statistics (count, average value, status distribution)
- * - Popular items (top 10 by order count)
- * - Customer metrics (new signups, active users, retention)
- * - Staff performance (orders processed per staff member)
- * - Peak hours analysis (busy times for staffing)
- * - Inventory alerts (items running low)
- * - System health (errors, downtime, response times)
- *
- * Use charting libraries:
- * - recharts (recommended for Next.js)
- * - Chart.js
- * - D3.js (for complex visualizations)
- *
- * ============================================================================
- * TESTING CHECKLIST FOR UI DEVELOPERS:
- * ============================================================================
- * After implementing UI:
- * - [ ] Dashboard loads for logged-in admins
- * - [ ] Non-admins are redirected
- * - [ ] All metrics display correctly
- * - [ ] Links to admin features work
- * - [ ] User management features work
- * - [ ] Menu management features work
- * - [ ] Reports generate correctly
- * - [ ] Settings can be updated
- * - [ ] Audit logs capture admin actions
- * - [ ] Confirmation dialogs for destructive operations
- * - [ ] Mobile responsive (though admins likely use desktop)
- * - [ ] Accessibility (WCAG 2.1 AA compliance)
+ * Comprehensive management dashboard for users with "manager" or "admin" roles.
+ * Provides system-wide metrics, user management, and administrative tools.
  */
 
-// No imports needed - middleware handles all auth
+import { createClient } from "@/src/integrations/supabase/server";
+import { formatPrice } from "@/src/lib/cart-utils";
+import Link from "next/link";
 
-/**
- * Admin Dashboard Page (Server Component)
- *
- * This is a Server Component that performs authentication and role checks
- * before rendering. DO NOT convert to Client Component.
- *
- * For interactive features (charts, tables, actions), create separate
- * Client Components and import them here.
- */
-export default async function AdminDashboardPage() {
-  /**
-   * ============================================================================
-   * AUTHENTICATION & AUTHORIZATION:
-   * ============================================================================
-   *
-   * The middleware (middleware.ts) already handles:
-   * - User authentication check (redirects to /auth/login if not logged in)
-   * - Role verification (only admin/manager can access this page)
-   * - Blocked user check (redirects to /blocked)
-   *
-   * If this component is running, the user is guaranteed to be:
-   * - Authenticated ✅
-   * - Admin or Manager role ✅
-   * - Not blocked ✅
-   *
-   * We don't need to duplicate these checks here. The middleware is the
-   * authoritative gatekeeper.
-   * ============================================================================
-   */
+export default async function ManagerDashboardPage() {
+  const supabase = await createClient();
 
-  /**
-   * ========================================================================
-   * UI DEVELOPER: Build your admin dashboard here
-   * ========================================================================
-   *
-   * This page is ONLY accessible to authenticated admin/manager users.
-   * The middleware guarantees this, so you can focus on building the UI.
-   *
-   * Guidelines:
-   * - Fetch system-wide data here (all orders, user counts, revenue)
-   * - Use Supabase server client for initial aggregated data
-   * - Create Client Components for interactive features
-   * - Implement real-time monitoring where needed
-   * - Add charts and visualizations
-   * - Ensure all admin actions go through API routes (audit logging)
-   * - Use semantic HTML for accessibility
-   * - Follow coffee theme from globals.css
-   */
+  // Get start of today
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+
+  // Get start of yesterday for comparison
+  const startOfYesterday = new Date(startOfToday);
+  startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+  const endOfYesterday = new Date(startOfToday);
+
+  // Fetch today's orders
+  const { data: ordersToday } = await supabase
+    .from("orders")
+    .select("total_cents, status, created_at")
+    .gte("created_at", startOfToday.toISOString());
+
+  // Fetch yesterday's orders
+  const { data: ordersYesterday } = await supabase
+    .from("orders")
+    .select("total_cents, status")
+    .gte("created_at", startOfYesterday.toISOString())
+    .lt("created_at", endOfYesterday.toISOString());
+
+  // Calculate today's revenue (completed orders only)
+  const revenueToday =
+    ordersToday
+      ?.filter((o) => o.status === "completed")
+      .reduce((sum, o) => sum + (o.total_cents || 0), 0) || 0;
+
+  // Calculate yesterday's revenue
+  const revenueYesterday =
+    ordersYesterday
+      ?.filter((o) => o.status === "completed")
+      .reduce((sum, o) => sum + (o.total_cents || 0), 0) || 0;
+
+  const revenueChange =
+    revenueYesterday > 0
+      ? ((revenueToday - revenueYesterday) / revenueYesterday) * 100
+      : 0;
+
+  // Count orders by status
+  const ordersCount = ordersToday?.length || 0;
+  const pendingCount =
+    ordersToday?.filter((o) => o.status === "pending").length || 0;
+  const completedCount =
+    ordersToday?.filter((o) => o.status === "completed").length || 0;
+  const preparingCount =
+    ordersToday?.filter((o) => o.status === "preparing").length || 0;
+  const readyCount =
+    ordersToday?.filter((o) => o.status === "ready").length || 0;
+
+  // Fetch user counts by role
+  const { count: customerCount } = await supabase
+    .from("user_roles")
+    .select("*", { count: "exact", head: true })
+    .eq("role", "customer");
+
+  const { count: staffCount } = await supabase
+    .from("user_roles")
+    .select("*", { count: "exact", head: true })
+    .in("role", ["staff", "manager"]);
+
+  const { count: adminCount } = await supabase
+    .from("user_roles")
+    .select("*", { count: "exact", head: true })
+    .eq("role", "admin");
+
+  // Fetch blocked users count
+  const { count: blockedCount } = await supabase
+    .from("profiles")
+    .select("*", { count: "exact", head: true })
+    .eq("blocked", true);
+
+  // Fetch new registrations today
+  const { count: newUsersToday } = await supabase
+    .from("profiles")
+    .select("*", { count: "exact", head: true })
+    .gte("created_at", startOfToday.toISOString());
+
+  // Fetch recent orders (last 10)
+  const { data: recentOrders } = await supabase
+    .from("orders")
+    .select(
+      "id, status, total_cents, created_at, guest_name, customer_id, priority"
+    )
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  // Fetch low stock items
+  const { data: lowStockItems } = await supabase
+    .from("items")
+    .select("id, name, stock_quantity, low_stock_threshold")
+    .eq("active", true)
+    .eq("track_inventory", true)
+    .not("stock_quantity", "is", null)
+    .not("low_stock_threshold", "is", null);
+
+  const itemsNeedingRestock =
+    lowStockItems?.filter(
+      (item) =>
+        item.stock_quantity !== null &&
+        item.low_stock_threshold !== null &&
+        item.stock_quantity <= item.low_stock_threshold
+    ) || [];
+
+  // Fetch recent audit log entries (if table exists)
+  let recentAuditLogs = null;
+  try {
+    const { data, error } = await supabase
+      .from("audit_log")
+      .select("id, entity_type, action, actor_email, created_at")
+      .order("created_at", { ascending: false })
+      .limit(10);
+    if (!error) {
+      recentAuditLogs = data;
+    }
+  } catch (error) {
+    // Gracefully handle if table doesn't exist or query fails
+    recentAuditLogs = null;
+  }
+
+  // Calculate total users
+  const totalUsers =
+    (customerCount || 0) + (staffCount || 0) + (adminCount || 0);
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header placeholder - Replace with actual navigation component */}
+      {/* Header */}
       <header className="border-b border-border bg-card">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <h1 className="text-2xl font-bold text-foreground">
-                Café Aroma - Admin Portal
+                Café Aroma - Manager Portal
               </h1>
               <span className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
-                Admin
+                Manager
               </span>
             </div>
             <div className="flex items-center gap-4">
               <span className="text-sm text-muted-foreground">
-                Admin Dashboard
+                Manager Dashboard
               </span>
-              {/* User info is shown in the navbar */}
             </div>
           </div>
         </div>
       </header>
 
-      {/* Main content placeholder */}
+      {/* Main content */}
       <main className="container mx-auto px-4 py-8">
         <div className="space-y-6">
           {/* Page title */}
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-foreground">
-              Admin Dashboard
+              Manager Dashboard
             </h1>
             <p className="mt-2 text-muted-foreground">
               Complete system overview and management tools.
             </p>
           </div>
 
-          {/* Key metrics row - Replace with actual data */}
+          {/* Key metrics row */}
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            {/* Revenue Card */}
             <div className="rounded-lg border border-border bg-card p-6">
               <h3 className="text-sm font-medium text-muted-foreground">
                 Today&apos;s Revenue
               </h3>
-              <p className="mt-2 text-3xl font-bold text-foreground">$0.00</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                +0% from yesterday
+              <p className="mt-2 text-3xl font-bold text-foreground">
+                {formatPrice(revenueToday)}
               </p>
-              {/* TODO: Fetch real revenue data */}
+              <p
+                className={`mt-1 text-xs ${
+                  revenueChange >= 0 ? "text-green-600" : "text-red-600"
+                }`}
+              >
+                {revenueChange >= 0 ? "+" : ""}
+                {revenueChange.toFixed(1)}% from yesterday
+              </p>
             </div>
 
+            {/* Orders Card */}
             <div className="rounded-lg border border-border bg-card p-6">
               <h3 className="text-sm font-medium text-muted-foreground">
                 Orders Today
               </h3>
-              <p className="mt-2 text-3xl font-bold text-foreground">0</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                0 pending, 0 completed
+              <p className="mt-2 text-3xl font-bold text-foreground">
+                {ordersCount}
               </p>
-              {/* TODO: Fetch real order counts */}
+              <p className="mt-1 text-xs text-muted-foreground">
+                {pendingCount} pending, {preparingCount} preparing, {readyCount}{" "}
+                ready, {completedCount} completed
+              </p>
             </div>
 
+            {/* Users Card */}
             <div className="rounded-lg border border-border bg-card p-6">
               <h3 className="text-sm font-medium text-muted-foreground">
                 Total Users
               </h3>
-              <p className="mt-2 text-3xl font-bold text-foreground">0</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                0 customers, 0 staff
+              <p className="mt-2 text-3xl font-bold text-foreground">
+                {totalUsers}
               </p>
-              {/* TODO: Fetch user counts by role */}
+              <p className="mt-1 text-xs text-muted-foreground">
+                {customerCount || 0} customers, {staffCount || 0} staff,{" "}
+                {adminCount || 0} admins
+              </p>
             </div>
 
+            {/* System Health Card */}
             <div className="rounded-lg border border-border bg-card p-6">
               <h3 className="text-sm font-medium text-muted-foreground">
                 System Health
@@ -418,110 +229,238 @@ export default async function AdminDashboardPage() {
               <p className="mt-1 text-xs text-muted-foreground">
                 All systems operational
               </p>
-              {/* TODO: Add real system health checks */}
+              {itemsNeedingRestock.length > 0 && (
+                <p className="mt-1 text-xs text-orange-600">
+                  {itemsNeedingRestock.length} items need restocking
+                </p>
+              )}
             </div>
           </div>
 
           {/* Main admin sections grid */}
           <div className="grid gap-6 lg:grid-cols-2">
-            {/* Management links */}
+            {/* Recent Orders */}
             <div className="rounded-lg border border-border bg-card p-6">
-              <h2 className="mb-4 text-xl font-semibold text-card-foreground">
-                Management
-              </h2>
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  • Menu Management (Items, Categories, Pricing)
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  • User Management (Customers, Staff, Roles)
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  • Order Management (View All, Refunds, Issues)
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  • Settings (Hours, Loyalty, Notifications)
-                </p>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-card-foreground">
+                  Recent Orders
+                </h2>
+                <Link
+                  href="/staff/orders"
+                  className="text-sm text-primary hover:underline"
+                >
+                  View All
+                </Link>
               </div>
-              {/* TODO: Add actual navigation links */}
+              {recentOrders && recentOrders.length > 0 ? (
+                <div className="space-y-3">
+                  {recentOrders.map((order) => (
+                    <div
+                      key={order.id}
+                      className="flex items-center justify-between border-b border-border pb-3 last:border-b-0"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-foreground">
+                          Order #{order.id.slice(0, 8)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(order.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-foreground">
+                          {formatPrice(order.total_cents || 0)}
+                        </p>
+                        <span
+                          className={`inline-block rounded-full px-2 py-1 text-xs font-medium ${
+                            order.status === "completed"
+                              ? "bg-green-100 text-green-800"
+                              : order.status === "pending"
+                                ? "bg-yellow-100 text-yellow-800"
+                                : order.status === "preparing"
+                                  ? "bg-purple-100 text-purple-800"
+                                  : order.status === "ready"
+                                    ? "bg-blue-100 text-blue-800"
+                                    : "bg-gray-100 text-gray-800"
+                          }`}
+                        >
+                          {order.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No recent orders
+                </p>
+              )}
             </div>
 
-            {/* Quick actions */}
+            {/* User Management Summary */}
             <div className="rounded-lg border border-border bg-card p-6">
-              <h2 className="mb-4 text-xl font-semibold text-card-foreground">
-                Quick Actions
-              </h2>
-              <div className="space-y-3">
-                <a
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-card-foreground">
+                  User Management
+                </h2>
+                <Link
                   href="/admin/staff"
-                  className="block rounded-md border border-border bg-background px-4 py-3 text-sm font-medium text-foreground hover:bg-muted"
+                  className="text-sm text-primary hover:underline"
                 >
-                  <span className="mr-2">👥</span>
-                  Manage Staff & Invite Codes
-                </a>
-                <a
-                  href="/staff"
-                  className="block rounded-md border border-border bg-background px-4 py-3 text-sm font-medium text-foreground hover:bg-muted"
-                >
-                  <span className="mr-2">📋</span>
-                  View Staff Dashboard
-                </a>
-                <p className="px-4 py-3 text-sm text-muted-foreground">
-                  • Generate Reports (Coming Soon)
-                </p>
-                <p className="px-4 py-3 text-sm text-muted-foreground">
-                  • Export Data (Coming Soon)
-                </p>
+                  Manage Users
+                </Link>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">
+                    New users today
+                  </span>
+                  <span className="text-sm font-medium text-foreground">
+                    {newUsersToday || 0}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">
+                    Blocked users
+                  </span>
+                  <span className="text-sm font-medium text-foreground">
+                    {blockedCount || 0}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">
+                    Total customers
+                  </span>
+                  <span className="text-sm font-medium text-foreground">
+                    {customerCount || 0}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">
+                    Staff & managers
+                  </span>
+                  <span className="text-sm font-medium text-foreground">
+                    {staffCount || 0}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Recent activity - Replace with actual data */}
+          {/* Additional sections */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            {/* Inventory Alerts */}
+            <div className="rounded-lg border border-border bg-card p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-card-foreground">
+                  Inventory Alerts
+                </h2>
+                <Link
+                  href="/manager/menu"
+                  className="text-sm text-primary hover:underline"
+                >
+                  Manage Menu
+                </Link>
+              </div>
+              {itemsNeedingRestock.length > 0 ? (
+                <div className="space-y-3">
+                  {itemsNeedingRestock.slice(0, 5).map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between border-b border-border pb-3 last:border-b-0"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-foreground">
+                          {item.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Stock: {item.stock_quantity} (Threshold:{" "}
+                          {item.low_stock_threshold})
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-800">
+                        Low Stock
+                      </span>
+                    </div>
+                  ))}
+                  {itemsNeedingRestock.length > 5 && (
+                    <p className="text-xs text-muted-foreground">
+                      +{itemsNeedingRestock.length - 5} more items need
+                      restocking
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  All items are well stocked
+                </p>
+              )}
+            </div>
+
+            {/* Audit Log */}
+            <div className="rounded-lg border border-border bg-card p-6">
+              <h2 className="mb-4 text-xl font-semibold text-card-foreground">
+                Recent Activity
+              </h2>
+              {recentAuditLogs && recentAuditLogs.length > 0 ? (
+                <div className="space-y-3">
+                  {recentAuditLogs.map((log: any) => (
+                    <div
+                      key={log.id}
+                      className="flex items-start justify-between border-b border-border pb-3 last:border-b-0"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-foreground">
+                          {log.action} {log.entity_type}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          by {log.actor_email || "System"}
+                        </p>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(log.created_at).toLocaleString()}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No recent activity logged
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Quick Actions */}
           <div className="rounded-lg border border-border bg-card p-6">
             <h2 className="mb-4 text-xl font-semibold text-card-foreground">
-              Recent Activity
+              Quick Actions
             </h2>
-            <p className="text-sm text-muted-foreground">
-              Recent orders, user registrations, and system events will appear
-              here.
-            </p>
-            {/* TODO: Fetch and display recent activity */}
-          </div>
-
-          {/* Developer notes */}
-          <div className="rounded-lg border-2 border-dashed border-primary bg-primary/10 p-6">
-            <h3 className="mb-2 text-lg font-semibold text-primary">
-              🚧 For UI Developers
-            </h3>
-            <div className="space-y-2 text-sm text-primary-foreground">
-              <p>
-                This is a SCAFFOLD page. Replace the placeholder content above
-                with:
-              </p>
-              <ul className="list-inside list-disc space-y-1 pl-4">
-                <li>Real metrics from database (revenue, orders, users)</li>
-                <li>
-                  Navigation to admin features (menu, users, orders, settings)
-                </li>
-                <li>
-                  Charts and visualizations (revenue trends, popular items)
-                </li>
-                <li>Real-time order monitor</li>
-                <li>User management tools (view, edit roles, block/unblock)</li>
-                <li>System health indicators</li>
-                <li>Audit log of admin actions</li>
-              </ul>
-              <p className="mt-4 font-semibold">
-                ⚠️ DO NOT modify the authentication and role check code above.
-              </p>
-              <p className="mt-2">
-                💡 Admin dashboard should display aggregated system-wide data.
-                Consider caching for performance.
-              </p>
-              <p className="mt-2">
-                🔒 All destructive admin actions (delete, block user) should
-                require confirmation dialogs.
-              </p>
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+              <Link
+                href="/manager/menu"
+                className="rounded-md border border-border bg-background px-4 py-3 text-center text-sm font-medium text-foreground transition-colors hover:bg-muted"
+              >
+                Manage Menu
+              </Link>
+              <Link
+                href="/admin/staff"
+                className="rounded-md border border-border bg-background px-4 py-3 text-center text-sm font-medium text-foreground transition-colors hover:bg-muted"
+              >
+                Manage Staff
+              </Link>
+              <Link
+                href="/staff/orders"
+                className="rounded-md border border-border bg-background px-4 py-3 text-center text-sm font-medium text-foreground transition-colors hover:bg-muted"
+              >
+                View Orders
+              </Link>
+              <Link
+                href="/staff"
+                className="rounded-md border border-border bg-background px-4 py-3 text-center text-sm font-medium text-foreground transition-colors hover:bg-muted"
+              >
+                Staff Dashboard
+              </Link>
             </div>
           </div>
         </div>
