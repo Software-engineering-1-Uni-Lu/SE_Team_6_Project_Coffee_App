@@ -17,10 +17,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
-// Set dynamic and runtime for Next.js API route (important for Supabase SSR)
-export const dynamic = "force-dynamic";
-export const runtime = "nodejs";
-
 export async function POST(request: NextRequest) {
   try {
     // Create response to attach cookie removal to
