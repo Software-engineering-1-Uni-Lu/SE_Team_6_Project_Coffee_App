@@ -99,7 +99,7 @@ export function ManagerMenuItemModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...formData,
-          price_cents: Math.round(formData.price_cents * 100), // Convert to cents
+          // price_cents is already in cents, no conversion needed
         }),
       });
 
@@ -252,12 +252,13 @@ export function ManagerMenuItemModal({
                   step="0.01"
                   min="0"
                   value={formData.price_cents / 100}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const euroValue = parseFloat(e.target.value) || 0;
                     setFormData((prev) => ({
                       ...prev,
-                      price_cents: parseFloat(e.target.value) || 0,
-                    }))
-                  }
+                      price_cents: Math.round(euroValue * 100), // Convert euros to cents
+                    }));
+                  }}
                   className="w-full rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)]"
                   placeholder="0.00"
                 />
