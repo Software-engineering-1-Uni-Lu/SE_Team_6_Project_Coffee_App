@@ -16,7 +16,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/src/integrations/supabase/server";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { cookies } from "next/headers";
 import { createAnonClient } from "@/src/integrations/supabase/anon";
 
 export async function POST(request: NextRequest) {
@@ -70,42 +71,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create Supabase client (server-side with proper cookie handling)
-    let supabase;
-    try {
-      supabase = await createClient();
-    } catch (clientError) {
-      console.error("Error creating Supabase client:", clientError);
-      return NextResponse.json(
-        { error: "Failed to initialize database connection" },
-        { status: 500 }
-      );
-    }
-
-    // Get authenticated user (if any)
-    let user;
-    try {
-      const {
-        data: { user: authUser },
-        error: authError,
-      } = await supabase.auth.getUser();
-      user = authUser;
-
-      if (authError) {
-        console.warn(
-          "Auth error (this is OK for guest orders):",
-          authError.message
-        );
-        // For guest orders, auth errors are expected, so we continue
+    // Create Supabase client with explicit cookie handling (same as working /api/auth/user)
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value;
+          },
+          set(name: string, value: string, options: CookieOptions) {
+            cookieStore.set(name, value, options);
+          },
+          remove(name: string, options: CookieOptions) {
+            cookieStore.set(name, "", options);
+          },
+        },
       }
-    } catch (authError) {
-      console.warn(
-        "Error getting user (this is OK for guest orders):",
-        authError
-      );
-      // For guest orders, this is expected, so we continue
-      user = null;
+    );
+
+    // Get authenticated user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError) {
+      console.log("Auth check result:", authError.message);
     }
+    console.log("User detected:", user?.id || "none (guest)");
 
     // Determine if this is a guest order or authenticated order
     // Guest order: no authenticated user AND guest info provided

@@ -147,25 +147,34 @@ export default function CheckoutPage() {
   };
 
   const onSubmit = async (data: CheckoutFormData) => {
-    // Validate guest fields for guest checkout
-    if (isGuest) {
-      if (!data.guest_name || !data.guest_name.trim()) {
-        toast.error("Please enter your name");
-        return;
-      }
-      if (!data.guest_email || !data.guest_email.trim()) {
-        toast.error("Please enter your email address");
-        return;
-      }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.guest_email)) {
-        toast.error("Please enter a valid email address");
-        return;
-      }
-    }
-
     setIsSubmitting(true);
 
     try {
+      // CRITICAL: Fresh auth check at submit time to avoid stale state
+      const {
+        data: { user: currentUser },
+      } = await supabase.auth.getUser();
+      const isActuallyGuest = !currentUser;
+
+      // Validate guest fields for guest checkout
+      if (isActuallyGuest) {
+        if (!data.guest_name || !data.guest_name.trim()) {
+          toast.error("Please enter your name");
+          setIsSubmitting(false);
+          return;
+        }
+        if (!data.guest_email || !data.guest_email.trim()) {
+          toast.error("Please enter your email address");
+          setIsSubmitting(false);
+          return;
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.guest_email)) {
+          toast.error("Please enter a valid email address");
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       // Prepare order items in the format expected by the database
       const orderItems = items.map((item) => ({
         productId: item.productId,
@@ -192,9 +201,9 @@ export default function CheckoutPage() {
         payment_method: "card" | "cash";
         payment_status: string;
       } = {
-        customer_id: isGuest ? null : user?.id || null,
-        guest_name: isGuest ? data.guest_name?.trim() || null : null,
-        guest_email: isGuest ? data.guest_email?.trim() || null : null,
+        customer_id: isActuallyGuest ? null : currentUser?.id || null,
+        guest_name: isActuallyGuest ? data.guest_name?.trim() || null : null,
+        guest_email: isActuallyGuest ? data.guest_email?.trim() || null : null,
         status: "pending",
         items: orderItems,
         subtotal_cents: netPrice,
@@ -207,7 +216,7 @@ export default function CheckoutPage() {
       // GUEST ORDERS: Client-side only (bypass API route completely)
       // Solution 1 from the guide: Create a fresh client with NO storage access
       // This ensures no session can be loaded, so auth.uid() IS NULL naturally
-      if (isGuest) {
+      if (isActuallyGuest) {
         // Create a FRESH client instance specifically for guest orders
         // This client has NO storage access, so it can't load any session
         // This matches Solution 1 from the guide
