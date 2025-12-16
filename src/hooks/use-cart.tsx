@@ -80,7 +80,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
 
     initializeCart();
-  }, []);
+  }, [supabase]);
 
   // Persist cart to Supabase when items change (for authenticated users)
   const persistCart = useCallback(
