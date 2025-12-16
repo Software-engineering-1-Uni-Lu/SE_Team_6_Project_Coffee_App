@@ -1,6 +1,10 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
+// Set dynamic and runtime for Next.js API route (important for Supabase SSR)
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 export async function createClient() {
   const cookieStore = await cookies();
 

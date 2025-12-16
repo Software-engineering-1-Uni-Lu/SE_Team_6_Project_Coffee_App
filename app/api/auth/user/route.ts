@@ -28,6 +28,10 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { isBlocked } from "@/src/lib/auth";
 
+// Set dynamic and runtime for Next.js API route (important for Supabase SSR)
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 export async function GET() {
   try {
     const cookieStore = await cookies();
