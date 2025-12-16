@@ -117,12 +117,20 @@ export default async function AdminDashboardPage() {
     ) || [];
 
   // Fetch recent audit log entries (if table exists)
-  const { data: recentAuditLogs } = await supabase
-    .from("audit_log")
-    .select("id, entity_type, action, actor_email, created_at")
-    .order("created_at", { ascending: false })
-    .limit(10)
-    .catch(() => ({ data: null })); // Gracefully handle if table doesn't exist
+  let recentAuditLogs = null;
+  try {
+    const { data, error } = await supabase
+      .from("audit_log")
+      .select("id, entity_type, action, actor_email, created_at")
+      .order("created_at", { ascending: false })
+      .limit(10);
+    if (!error) {
+      recentAuditLogs = data;
+    }
+  } catch (error) {
+    // Gracefully handle if table doesn't exist or query fails
+    recentAuditLogs = null;
+  }
 
   // Calculate total users
   const totalUsers =
