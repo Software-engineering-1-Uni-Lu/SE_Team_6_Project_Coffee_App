@@ -39,6 +39,7 @@ export default function LoginPage() {
 
       // Success! Force a full page reload to ensure session is established
       // The middleware will automatically redirect to the correct dashboard
+      // Using window.location.href ensures cookies are sent with the request
       window.location.href = "/";
     } catch (err) {
       setError("An unexpected error occurred");

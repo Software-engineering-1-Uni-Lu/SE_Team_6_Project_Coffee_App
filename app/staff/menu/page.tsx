@@ -92,11 +92,11 @@ export default function StaffMenuPage() {
 
         setCategories(categoriesData || []);
         // Ensure all items have default low_stock_threshold if not set
-        const itemsWithDefaults = (itemsData || []).map((item) => ({
+        const itemsWithDefaults = (itemsData || []).map((item: any) => ({
           ...item,
           low_stock_threshold: item.low_stock_threshold ?? 10,
           stock_quantity: item.stock_quantity ?? 0,
-        }));
+        })) as MenuItem[];
         setItems(itemsWithDefaults);
       } catch (err) {
         console.error("Error fetching menu data:", err);
