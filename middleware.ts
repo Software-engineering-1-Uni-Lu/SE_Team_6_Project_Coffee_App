@@ -105,7 +105,28 @@
 
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { getUserRole, isBlocked } from "@/src/lib/auth";
+import type { UserRole } from "@/src/lib/auth-utils";
+
+/**
+ * Helper function to get user role from database using the middleware's Supabase client
+ * This is necessary because getUserRole() from auth.ts creates a different client context
+ */
+async function getRoleFromDB(
+  supabase: ReturnType<typeof createServerClient>,
+  userId: string
+): Promise<UserRole> {
+  const { data, error } = await supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .single();
+
+  if (error || !data) {
+    return "customer"; // Default fallback
+  }
+
+  return (data.role as UserRole) || "customer";
+}
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -195,26 +216,49 @@ export async function middleware(request: NextRequest) {
    */
 
   /**
-   * PUBLIC ROUTES
-   * These routes are accessible to everyone, no checks needed
+   * BLOCKED USER CHECK (CSA-57)
+   *
+   * HIGHEST PRIORITY: Check if user is blocked BEFORE any other route checks
+   * If user is blocked, redirect to /blocked page
+   * Exception: Allow access to /blocked page itself and logout
+   *
+   * IMPORTANT: Uses direct database query with middleware's Supabase client
+   * to ensure blocked status is always current and cannot be tampered with.
+   *
+   * This check happens FIRST to ensure blocked users cannot access ANY routes,
+   * including public routes like /menu, /about, etc.
    */
-  const publicRoutes = ["/", "/menu", "/about", "/contact"];
-  if (publicRoutes.includes(pathname)) {
-    return response;
+  if (user) {
+    // Query blocked status directly using middleware's supabase client
+    const { data: profileData, error: profileError } = await supabase
+      .from("profiles")
+      .select("blocked")
+      .eq("id", user.id)
+      .single();
+
+    const isBlocked = profileData?.blocked === true;
+
+    if (isBlocked) {
+      // Allow access to /blocked page, logout, and user API endpoint
+      if (
+        pathname !== "/blocked" &&
+        !pathname.startsWith("/api/auth/logout") &&
+        pathname !== "/api/auth/user"
+      ) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/blocked";
+        return NextResponse.redirect(url);
+      }
+      return response;
+    }
   }
 
   /**
-   * BLOCKED USER CHECK (CSA-57)
-   *
-   * If user is blocked, redirect to /blocked page
-   * Exception: Allow access to /blocked page itself and logout
+   * PUBLIC ROUTES
+   * These routes are accessible to everyone (except blocked users - checked above)
    */
-  if (user && isBlocked(user)) {
-    if (pathname !== "/blocked" && !pathname.startsWith("/api/auth/logout")) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/blocked";
-      return NextResponse.redirect(url);
-    }
+  const publicRoutes = ["/", "/menu", "/about", "/contact"];
+  if (publicRoutes.includes(pathname)) {
     return response;
   }
 
@@ -225,11 +269,27 @@ export async function middleware(request: NextRequest) {
    * If not blocked, redirect to home
    */
   if (pathname === "/blocked") {
-    if (!user || !isBlocked(user)) {
+    if (!user) {
       const url = request.nextUrl.clone();
       url.pathname = "/";
       return NextResponse.redirect(url);
     }
+
+    // Check if user is actually blocked
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("blocked")
+      .eq("id", user.id)
+      .single();
+
+    const isBlocked = profileData?.blocked === true;
+
+    if (!isBlocked) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/";
+      return NextResponse.redirect(url);
+    }
+
     return response;
   }
 
@@ -256,7 +316,7 @@ export async function middleware(request: NextRequest) {
    */
   if (pathname.startsWith("/auth") && pathname !== "/auth/profile") {
     if (user) {
-      const role = await getUserRole(user.id);
+      const role = await getRoleFromDB(supabase, user.id);
       const url = request.nextUrl.clone();
 
       /**
@@ -302,7 +362,7 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    const role = await getUserRole(user.id);
+    const role = await getRoleFromDB(supabase, user.id);
     if (role !== "customer") {
       const url = request.nextUrl.clone();
       // Redirect to appropriate dashboard
@@ -342,7 +402,8 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    const role = await getUserRole(user.id);
+    const role = await getRoleFromDB(supabase, user.id);
+
     if (role === "customer") {
       const url = request.nextUrl.clone();
       // Customers can't access staff features
@@ -387,7 +448,8 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    const role = await getUserRole(user.id);
+    const role = await getRoleFromDB(supabase, user.id);
+
     if (role === "customer") {
       const url = request.nextUrl.clone();
       url.pathname = "/menu";

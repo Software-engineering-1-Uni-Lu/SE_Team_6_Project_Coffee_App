@@ -114,6 +114,47 @@ export async function getUserRoleWithCache(user: User): Promise<UserRole> {
 }
 
 /**
+ * Checks if a user is blocked from accessing the application (DATABASE SOURCE OF TRUTH)
+ *
+ * ARCHITECTURE:
+ * - Blocked status is stored in profiles.blocked column (database)
+ * - This is the AUTHORITATIVE source for blocked status
+ * - Replaces the metadata-based check in isBlocked() from auth-utils.ts
+ *
+ * SECURITY:
+ * - Uses RLS policies to ensure secure access
+ * - Database column cannot be tampered with client-side
+ * - Middleware and API routes should use this function
+ *
+ * IMPORTANT:
+ * This function queries the database, so it's async.
+ * Use this in server-side code (middleware, API routes, server components).
+ * For client-side components, use the useUser() hook which fetches blocked status from API.
+ *
+ * @param userId - The user's UUID
+ * @returns Promise<boolean> - true if user is blocked, false otherwise
+ */
+export async function isBlockedFromDB(userId: string): Promise<boolean> {
+  const supabase = await createClient();
+
+  // Query the profiles table for blocked status
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("blocked")
+    .eq("id", userId)
+    .single();
+
+  if (error || !data) {
+    // If error or no data, assume not blocked (fail-open for availability)
+    // This prevents blocking all users if database is temporarily unavailable
+    return false;
+  }
+
+  // Return blocked status from database
+  return data.blocked === true;
+}
+
+/**
  * Gets the current authenticated user from the server-side session
  *
  * SECURITY:
