@@ -261,9 +261,7 @@
  * - [ ] Sound alerts work (with user permission)
  */
 
-import { redirect } from "next/navigation";
-import { createClient } from "@/src/integrations/supabase/server";
-import { getCurrentUser, getUserRole, isBlocked } from "@/src/lib/auth";
+// No imports needed - middleware handles all auth
 
 /**
  * Staff Dashboard Page (Server Component)
@@ -276,52 +274,32 @@ import { getCurrentUser, getUserRole, isBlocked } from "@/src/lib/auth";
  */
 export default async function StaffDashboardPage() {
   /**
-   * AUTHENTICATION CHECK
+   * ============================================================================
+   * AUTHENTICATION & AUTHORIZATION:
+   * ============================================================================
    *
-   * Get current user from server-side session.
-   * If no user, middleware should have redirected, but we verify again.
+   * The middleware (middleware.ts) already handles:
+   * - User authentication check (redirects to /auth/login if not logged in)
+   * - Role verification (only staff/manager/admin can access this page)
+   * - Blocked user check (redirects to /blocked)
+   *
+   * If this component is running, the user is guaranteed to be:
+   * - Authenticated ✅
+   * - Staff, Manager, or Admin role ✅
+   * - Not blocked ✅
+   *
+   * We don't need to duplicate these checks here. The middleware is the
+   * authoritative gatekeeper.
+   * ============================================================================
    */
-  const user = await getCurrentUser();
-
-  if (!user) {
-    redirect("/auth/login");
-  }
-
-  /**
-   * BLOCKED USER CHECK
-   *
-   * Blocked users cannot access any dashboard.
-   */
-  if (isBlocked(user)) {
-    redirect("/blocked");
-  }
-
-  /**
-   * ROLE AUTHORIZATION CHECK
-   *
-   * This page is for staff only.
-   * Customers are redirected to /customer.
-   * Admins CAN access but typically use /admin.
-   *
-   * Note: We allow admins to access staff dashboard because admins
-   * may need to help with operations. However, admins will typically
-   * use /admin dashboard which includes both admin and staff features.
-   */
-  const role = await getUserRole(user.id);
-
-  if (role === "customer") {
-    redirect("/customer");
-  }
-
-  // Staff, manager, and admin can proceed
 
   /**
    * ========================================================================
-   * UI DEVELOPER: Replace content below this line
+   * UI DEVELOPER: Build your staff dashboard here
    * ========================================================================
    *
-   * KEEP THE ABOVE: Authentication and role checks are production-ready
-   * REPLACE BELOW: This is placeholder UI only
+   * This page is ONLY accessible to authenticated staff/manager/admin users.
+   * The middleware guarantees this, so you can focus on building the UI.
    *
    * Guidelines:
    * - Fetch active orders here (pending, preparing, ready)
@@ -343,15 +321,10 @@ export default async function StaffDashboardPage() {
               Café Aroma - Staff Portal
             </h1>
             <div className="flex items-center gap-4">
-              {(role === "admin" || role === "manager") && (
-                <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-                  Admin Access
-                </span>
-              )}
               <span className="text-sm text-muted-foreground">
-                Welcome, {user.user_metadata?.full_name || user.email}
+                Staff Dashboard
               </span>
-              {/* TODO: Add logout button component here */}
+              {/* User info is shown in the navbar */}
             </div>
           </div>
         </div>
