@@ -1,7 +1,7 @@
 /**
- * Admin Dashboard Page - /admin
+ * Manager Dashboard Page - /admin
  *
- * Comprehensive management dashboard for users with the "admin" role.
+ * Comprehensive management dashboard for users with "manager" or "admin" roles.
  * Provides system-wide metrics, user management, and administrative tools.
  */
 
@@ -9,7 +9,7 @@ import { createClient } from "@/src/integrations/supabase/server";
 import { formatPrice } from "@/src/lib/cart-utils";
 import Link from "next/link";
 
-export default async function AdminDashboardPage() {
+export default async function ManagerDashboardPage() {
   const supabase = await createClient();
 
   // Get start of today
@@ -144,15 +144,15 @@ export default async function AdminDashboardPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <h1 className="text-2xl font-bold text-foreground">
-                Café Aroma - Admin Portal
+                Café Aroma - Manager Portal
               </h1>
               <span className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
-                Admin
+                Manager
               </span>
             </div>
             <div className="flex items-center gap-4">
               <span className="text-sm text-muted-foreground">
-                Admin Dashboard
+                Manager Dashboard
               </span>
             </div>
           </div>
@@ -165,7 +165,7 @@ export default async function AdminDashboardPage() {
           {/* Page title */}
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-foreground">
-              Admin Dashboard
+              Manager Dashboard
             </h1>
             <p className="mt-2 text-muted-foreground">
               Complete system overview and management tools.
