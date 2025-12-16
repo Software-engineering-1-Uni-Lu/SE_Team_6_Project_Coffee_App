@@ -25,15 +25,16 @@ export type PaymentStatus = "paid" | "unpaid" | "refunded";
  * Individual item within an order (stored in JSONB)
  */
 export interface OrderItem {
-  id: string;
+  productId: string;
   name: string;
   quantity: number;
-  price_cents: number;
+  price: number; // Price in cents
+  basePrice?: number; // Base price before modifiers
   modifiers?: Array<{
-    name: string;
     label: string;
-    price_cents: number;
+    price: number; // Price in cents
   }>;
+  imageUrl?: string | null;
 }
 
 /**
