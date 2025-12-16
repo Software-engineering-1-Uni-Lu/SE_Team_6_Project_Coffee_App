@@ -65,11 +65,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
             .eq("user_id", user.id)
             .single();
 
+          // PGRST116 = no rows returned (expected for new users)
           if (error && error.code !== "PGRST116") {
-            // PGRST116 = no rows returned
             console.error("Error loading cart:", error);
-          } else if (data?.items) {
-            setItems(Array.isArray(data.items) ? data.items : []);
+          }
+
+          // Load cart items if data exists
+          if (data) {
+            const cartData = data as { items: CartItem[] | null } | null;
+            if (cartData?.items && Array.isArray(cartData.items)) {
+              setItems(cartData.items);
+            }
           }
         }
       } catch (error) {
@@ -88,7 +94,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (!userId) return;
 
       try {
-        const { error } = await supabase.from("carts").upsert(
+        const { error } = await (supabase.from("carts").upsert as any)(
           {
             user_id: userId,
             items: newItems,

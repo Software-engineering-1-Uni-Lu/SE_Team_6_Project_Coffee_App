@@ -36,13 +36,19 @@ interface Order {
 export default function OrderConfirmationPage() {
   const params = useParams();
   const router = useRouter();
-  const orderId = params.id as string;
+  const orderId = params?.id as string;
 
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!orderId) {
+      setError("Order ID is missing");
+      setLoading(false);
+      return;
+    }
+
     async function fetchOrder() {
       try {
         const supabase = createClient();

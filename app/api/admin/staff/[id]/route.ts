@@ -123,13 +123,13 @@ export async function GET(
       );
     }
 
-    const { data: roleData, error: roleError } = await supabase
+    const { data: staffRoleData, error: staffRoleError } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", staffId)
       .single();
 
-    if (roleError || !roleData) {
+    if (staffRoleError || !staffRoleData) {
       return NextResponse.json(
         { error: "Staff member role not found" },
         { status: 404 }
@@ -139,7 +139,7 @@ export async function GET(
     return NextResponse.json({
       staff: {
         ...profile,
-        role: roleData.role,
+        role: staffRoleData.role,
       },
     });
   } catch (error) {
@@ -236,13 +236,13 @@ export async function PATCH(
     }
 
     // Get target user's current role
-    const { data: targetRoleData, error: roleError } = await supabase
+    const { data: targetRoleData, error: targetRoleError } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", staffId)
       .single();
 
-    if (roleError || !targetRoleData) {
+    if (targetRoleError || !targetRoleData) {
       return NextResponse.json(
         { error: "Target user role not found" },
         { status: 404 }

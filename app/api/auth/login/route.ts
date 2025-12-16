@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!data.user) {
+    if (!data.user || !data.session) {
       return NextResponse.json({ error: "Login failed" }, { status: 500 });
     }
 
@@ -85,20 +85,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Return response with cookies attached
-    return NextResponse.json(
-      {
-        message: "Login successful",
-        user: {
-          id: data.user.id,
-          email: data.user.email,
-          user_metadata: data.user.user_metadata,
-        },
+    // Create success response
+    const successData = {
+      message: "Login successful",
+      user: {
+        id: data.user.id,
+        email: data.user.email,
+        user_metadata: data.user.user_metadata,
       },
-      {
-        headers: response.headers,
-      }
-    );
+    };
+
+    // CRITICAL: Let Supabase set the cookie through its handlers
+    // Call getUser() to trigger Supabase SSR to set the session cookie
+    // This ensures the cookie is set in the format Supabase expects
+    await supabase.auth.getUser();
+
+    // Return the response with updated body but preserve all cookies
+    // This is the pattern that works - return response with headers
+    return NextResponse.json(successData, {
+      status: 200,
+      headers: response.headers, // Includes all Set-Cookie headers from Supabase
+    });
   } catch (error) {
     console.error("Login error:", error);
     return NextResponse.json(
