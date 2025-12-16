@@ -247,6 +247,33 @@ export default function ManagerMenuPage() {
                       )}
                     </div>
 
+                    {/* Inventory Status */}
+                    {(item as any).track_inventory && (
+                      <div className="mb-3">
+                        <p className="text-xs text-[hsl(25,35%,45%)]">
+                          Stock:{" "}
+                          <span
+                            className={`font-medium ${
+                              (item as any).stock_quantity !== null &&
+                              (item as any).low_stock_threshold !== null &&
+                              (item as any).stock_quantity <=
+                                (item as any).low_stock_threshold
+                                ? "text-red-600"
+                                : "text-[hsl(25,35%,25%)]"
+                            }`}
+                          >
+                            {(item as any).stock_quantity ?? "N/A"}
+                          </span>
+                          {(item as any).low_stock_threshold !== null && (
+                            <span className="text-[hsl(25,35%,45%)]">
+                              {" "}
+                              (Threshold: {(item as any).low_stock_threshold})
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    )}
+
                     {/* Actions */}
                     <div className="flex gap-2">
                       <button

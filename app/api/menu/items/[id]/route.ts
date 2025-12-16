@@ -43,6 +43,10 @@ export async function PATCH(
       vegan,
       active,
       modifiers,
+      stock_quantity,
+      track_inventory,
+      low_stock_threshold,
+      reorder_quantity,
     } = body;
 
     // Validate price if provided
@@ -70,6 +74,13 @@ export async function PATCH(
     if (vegan !== undefined) updates.vegan = vegan;
     if (active !== undefined) updates.active = active;
     if (modifiers !== undefined) updates.modifiers = modifiers;
+    if (stock_quantity !== undefined) updates.stock_quantity = stock_quantity;
+    if (track_inventory !== undefined)
+      updates.track_inventory = track_inventory;
+    if (low_stock_threshold !== undefined)
+      updates.low_stock_threshold = low_stock_threshold;
+    if (reorder_quantity !== undefined)
+      updates.reorder_quantity = reorder_quantity;
 
     const { data, error } = await supabase
       .from("items")

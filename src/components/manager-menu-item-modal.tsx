@@ -25,6 +25,7 @@ export function ManagerMenuItemModal({
   categories = [],
 }: ManagerMenuItemModalProps) {
   const [loading, setLoading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [formData, setFormData] = useState({
     category_id: "",
     name: "",
@@ -37,6 +38,10 @@ export function ManagerMenuItemModal({
     vegan: false,
     active: true,
     modifiers: [] as Modifier[],
+    stock_quantity: null as number | null,
+    track_inventory: false,
+    low_stock_threshold: null as number | null,
+    reorder_quantity: null as number | null,
   });
 
   useEffect(() => {
@@ -53,6 +58,22 @@ export function ManagerMenuItemModal({
         vegan: item.vegan || false,
         active: item.active !== undefined ? item.active : true,
         modifiers: item.modifiers || [],
+        stock_quantity:
+          (item as any).stock_quantity !== undefined
+            ? (item as any).stock_quantity
+            : null,
+        track_inventory:
+          (item as any).track_inventory !== undefined
+            ? (item as any).track_inventory
+            : false,
+        low_stock_threshold:
+          (item as any).low_stock_threshold !== undefined
+            ? (item as any).low_stock_threshold
+            : null,
+        reorder_quantity:
+          (item as any).reorder_quantity !== undefined
+            ? (item as any).reorder_quantity
+            : null,
       });
     } else {
       setFormData({
@@ -67,6 +88,10 @@ export function ManagerMenuItemModal({
         vegan: false,
         active: true,
         modifiers: [],
+        stock_quantity: null,
+        track_inventory: false,
+        low_stock_threshold: null,
+        reorder_quantity: null,
       });
     }
   }, [item, categories]);
@@ -84,6 +109,53 @@ export function ManagerMenuItemModal({
       name,
       slug: prev.slug || generateSlug(name),
     }));
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (!validTypes.includes(file.type)) {
+      toast.error("Invalid file type. Only JPEG, PNG, and WebP are allowed");
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      toast.error("File size exceeds 5MB limit");
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/menu/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to upload image");
+      }
+
+      const data = await response.json();
+      setFormData((prev) => ({
+        ...prev,
+        image_url: data.url,
+      }));
+      toast.success("Image uploaded successfully");
+    } catch (error: any) {
+      console.error("Error uploading image:", error);
+      toast.error(error.message || "Failed to upload image");
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -264,23 +336,46 @@ export function ManagerMenuItemModal({
                 />
               </div>
 
-              {/* Image URL */}
+              {/* Image Upload */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-[hsl(25,35%,25%)]">
-                  Image URL
+                  Image
                 </label>
-                <input
-                  type="url"
-                  value={formData.image_url}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      image_url: e.target.value,
-                    }))
-                  }
-                  className="w-full rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)]"
-                  placeholder="https://example.com/image.jpg"
-                />
+                <div className="space-y-2">
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/webp"
+                    onChange={handleImageUpload}
+                    disabled={uploadingImage}
+                    className="w-full rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)] disabled:opacity-50"
+                  />
+                  {uploadingImage && (
+                    <p className="text-xs text-[hsl(25,35%,45%)]">
+                      Uploading...
+                    </p>
+                  )}
+                  <input
+                    type="url"
+                    value={formData.image_url}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        image_url: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)]"
+                    placeholder="Or enter image URL"
+                  />
+                  {formData.image_url && (
+                    <div className="mt-2">
+                      <img
+                        src={formData.image_url}
+                        alt="Preview"
+                        className="h-32 w-32 rounded-md object-cover"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Dietary Options */}
@@ -366,6 +461,113 @@ export function ManagerMenuItemModal({
                     Active (visible to customers)
                   </span>
                 </label>
+              </div>
+
+              {/* Inventory Management */}
+              <div className="space-y-4 border-t pt-4">
+                <h3 className="text-lg font-semibold text-[hsl(25,35%,25%)]">
+                  Inventory Management
+                </h3>
+
+                {/* Track Inventory */}
+                <div>
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={formData.track_inventory}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          track_inventory: e.target.checked,
+                        }))
+                      }
+                      className="mr-2"
+                    />
+                    <span className="text-sm font-medium text-[hsl(25,35%,25%)]">
+                      Track Inventory
+                    </span>
+                  </label>
+                  <p className="mt-1 text-xs text-[hsl(25,35%,45%)]">
+                    Enable inventory tracking for this item (e.g., retail
+                    products)
+                  </p>
+                </div>
+
+                {formData.track_inventory && (
+                  <>
+                    {/* Stock Quantity */}
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-[hsl(25,35%,25%)]">
+                        Stock Quantity
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={formData.stock_quantity ?? ""}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            stock_quantity: e.target.value
+                              ? parseInt(e.target.value, 10)
+                              : null,
+                          }))
+                        }
+                        className="w-full rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)]"
+                        placeholder="0"
+                      />
+                    </div>
+
+                    {/* Low Stock Threshold */}
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-[hsl(25,35%,25%)]">
+                        Low Stock Threshold
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={formData.low_stock_threshold ?? ""}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            low_stock_threshold: e.target.value
+                              ? parseInt(e.target.value, 10)
+                              : null,
+                          }))
+                        }
+                        className="w-full rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)]"
+                        placeholder="10"
+                      />
+                      <p className="mt-1 text-xs text-[hsl(25,35%,45%)]">
+                        Alert when stock falls below this quantity
+                      </p>
+                    </div>
+
+                    {/* Reorder Quantity */}
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-[hsl(25,35%,25%)]">
+                        Reorder Quantity
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={formData.reorder_quantity ?? ""}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            reorder_quantity: e.target.value
+                              ? parseInt(e.target.value, 10)
+                              : null,
+                          }))
+                        }
+                        className="w-full rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)]"
+                        placeholder="50"
+                      />
+                      <p className="mt-1 text-xs text-[hsl(25,35%,45%)]">
+                        Suggested quantity to reorder when stock is low
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 

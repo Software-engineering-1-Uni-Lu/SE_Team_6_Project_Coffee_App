@@ -67,6 +67,10 @@ export async function POST(request: NextRequest) {
       vegan,
       active,
       modifiers,
+      stock_quantity,
+      track_inventory,
+      low_stock_threshold,
+      reorder_quantity,
     } = body;
 
     // Validate required fields
@@ -104,6 +108,13 @@ export async function POST(request: NextRequest) {
         vegan: vegan || false,
         active: active !== undefined ? active : true,
         modifiers: modifiers || [],
+        stock_quantity: stock_quantity !== undefined ? stock_quantity : null,
+        track_inventory:
+          track_inventory !== undefined ? track_inventory : false,
+        low_stock_threshold:
+          low_stock_threshold !== undefined ? low_stock_threshold : null,
+        reorder_quantity:
+          reorder_quantity !== undefined ? reorder_quantity : null,
       })
       .select()
       .single();
