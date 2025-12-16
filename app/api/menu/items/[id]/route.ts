@@ -8,21 +8,54 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/src/integrations/supabase/server";
-import { getCurrentUser } from "@/src/lib/auth";
-import { getUserRole } from "@/src/lib/auth";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { cookies } from "next/headers";
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
+    const cookieStore = await cookies();
+
+    // Create Supabase client with proper cookie handling for API routes
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value;
+          },
+          set(name: string, value: string, options: CookieOptions) {
+            cookieStore.set(name, value, options);
+          },
+          remove(name: string, options: CookieOptions) {
+            cookieStore.set(name, "", options);
+          },
+        },
+      }
+    );
+
+    // Get authenticated user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    const role = await getUserRole(user.id);
+    // Get user's role from database
+    const { data: roleData, error: roleError } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .single();
+
+    const role = roleError || !roleData ? "customer" : roleData.role;
+
     if (role !== "admin" && role !== "manager") {
       return NextResponse.json(
         { error: "Only managers and admins can update menu items" },
@@ -56,8 +89,6 @@ export async function PATCH(
         { status: 400 }
       );
     }
-
-    const supabase = await createClient();
 
     const updates: any = {
       updated_at: new Date().toISOString(),
@@ -112,20 +143,52 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
+    const cookieStore = await cookies();
+
+    // Create Supabase client with proper cookie handling for API routes
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value;
+          },
+          set(name: string, value: string, options: CookieOptions) {
+            cookieStore.set(name, value, options);
+          },
+          remove(name: string, options: CookieOptions) {
+            cookieStore.set(name, "", options);
+          },
+        },
+      }
+    );
+
+    // Get authenticated user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    const role = await getUserRole(user.id);
+    // Get user's role from database
+    const { data: roleData, error: roleError } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .single();
+
+    const role = roleError || !roleData ? "customer" : roleData.role;
+
     if (role !== "admin" && role !== "manager") {
       return NextResponse.json(
         { error: "Only managers and admins can delete menu items" },
         { status: 403 }
       );
     }
-
-    const supabase = await createClient();
 
     const { error } = await supabase.from("items").delete().eq("id", params.id);
 
