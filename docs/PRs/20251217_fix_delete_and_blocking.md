@@ -1,6 +1,6 @@
 # PR Description: Critical Fixes for Account Deletion and User Blocking
 
-**Branch:** `bugfix/delete-and-blocking-fixes`
+**Branch:** `fix/blocked-delete-features`
 **Author:** Anthony Stassart
 **Date:** December 17, 2025
 
