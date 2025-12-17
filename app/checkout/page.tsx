@@ -117,12 +117,14 @@ export default function CheckoutPage() {
     }
   }, [watchedPaymentMethod]);
 
-  // Redirect if cart is empty
+  // Redirect if cart is empty (only after cart has finished loading)
   useEffect(() => {
-    if (!cartLoading && items.length === 0) {
+    // Wait for both cart and user loading to complete before redirecting
+    // This prevents premature redirects during initialization
+    if (!cartLoading && !userLoading && items.length === 0) {
       router.push("/menu");
     }
-  }, [cartLoading, items.length, router]);
+  }, [cartLoading, userLoading, items.length, router]);
 
   // Format card number input
   const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -162,17 +164,14 @@ export default function CheckoutPage() {
       if (isActuallyGuest) {
         if (!data.guest_name || !data.guest_name.trim()) {
           toast.error("Please enter your name");
-          setIsSubmitting(false);
           return;
         }
         if (!data.guest_email || !data.guest_email.trim()) {
           toast.error("Please enter your email address");
-          setIsSubmitting(false);
           return;
         }
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.guest_email)) {
           toast.error("Please enter a valid email address");
-          setIsSubmitting(false);
           return;
         }
       }
@@ -308,7 +307,7 @@ export default function CheckoutPage() {
           return;
         }
 
-        if (!orderData_result || !orderData_result.id) {
+        if (!orderData_result) {
           console.error("No order data returned from RPC");
           toast.error("Failed to create order. Please try again.");
           return;
@@ -317,9 +316,25 @@ export default function CheckoutPage() {
         // The function returns the full order as JSONB, so we can use it directly
         const order = orderData_result;
 
-        toast.success("Order placed successfully!");
+        // Extract order ID - the RPC returns the order as JSONB with id field
+        const orderId = (order as any)?.id;
 
-        const orderId = (order as any).id as string;
+        if (!orderId) {
+          console.error("Order ID not found in RPC result:", order);
+          toast.error("Failed to create order. Please try again.");
+          return;
+        }
+
+        // Validate order ID is a string (UUID)
+        if (typeof orderId !== "string") {
+          console.error("Invalid order ID format:", orderId, typeof orderId);
+          toast.error("Failed to create order. Please try again.");
+          return;
+        }
+
+        console.log("Guest order created successfully with ID:", orderId);
+
+        toast.success("Order placed successfully!");
 
         // Best-effort cart clear; do not block redirect on failure
         try {
@@ -335,8 +350,13 @@ export default function CheckoutPage() {
           // Ignore storage failures
         }
 
-        // Redirect to confirmation
-        router.push(`/order-confirmation/${orderId}`);
+        // Redirect to confirmation (same as authenticated users)
+        // Use window.location.href for a hard redirect to ensure it works
+        console.log(
+          "Redirecting to order confirmation:",
+          `/order-confirmation/${orderId}`
+        );
+        window.location.href = `/order-confirmation/${orderId}`;
         return;
       }
 
