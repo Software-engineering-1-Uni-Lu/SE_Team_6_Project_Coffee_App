@@ -26,7 +26,7 @@
 import { NextResponse } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { isBlocked } from "@/src/lib/auth";
+import { isBlockedFromDB } from "@/src/lib/auth";
 
 export async function GET() {
   try {
@@ -75,15 +75,15 @@ export async function GET() {
         ? "customer"
         : (roleData.role as "customer" | "staff" | "manager" | "admin");
 
-    // Check blocked status
-    const blocked = isBlocked(user);
+    // Check blocked status from database (source of truth)
+    const blocked = await isBlockedFromDB(user.id);
 
     return NextResponse.json({
       user: {
         id: user.id,
         email: user.email,
         role, // Role from user_roles table
-        isBlocked: blocked,
+        isBlocked: blocked, // Blocked status from profiles table
         user_metadata: user.user_metadata,
         created_at: user.created_at,
       },

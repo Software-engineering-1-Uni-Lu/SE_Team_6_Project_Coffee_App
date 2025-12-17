@@ -325,7 +325,7 @@ export async function ManagerDashboardContent() {
                 Staff Overview
               </h2>
               <Link
-                href="/manager/staff-management"
+                href="/admin/staff"
                 className="text-sm text-[hsl(25,35%,25%)] hover:underline"
               >
                 Manage Staff
@@ -506,7 +506,7 @@ export async function ManagerDashboardContent() {
               View Orders
             </Link>
             <Link
-              href="/manager/staff-management"
+              href="/admin/staff"
               className="rounded-md border border-[hsl(35,20%,90%)] bg-white px-4 py-3 text-center text-sm font-medium text-[hsl(25,35%,25%)] transition-colors hover:bg-[hsl(35,20%,95%)]"
             >
               Staff Management

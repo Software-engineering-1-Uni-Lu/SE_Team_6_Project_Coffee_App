@@ -91,7 +91,7 @@ export function Navbar({ onCartOpen }: NavbarProps) {
                       Dashboard
                     </Link>
                     <Link
-                      href="/manager/staff-management"
+                      href="/admin/staff"
                       className="block px-4 py-2 text-sm text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,95%)]"
                     >
                       Staff Management

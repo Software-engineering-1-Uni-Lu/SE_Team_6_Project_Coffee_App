@@ -6,12 +6,12 @@
  * PURPOSE:
  * This hook provides client-side access to the authenticated user's session,
  * automatically syncing with Supabase auth state changes. It fetches the user's
- * role from the database (user_roles table) for accurate, server-controlled role data.
+ * role and blocked status from the database via API for accurate, server-controlled data.
  *
  * ARCHITECTURE (UPDATED):
  * - User session from Supabase Auth (cookies)
  * - User role from user_roles table via API (source of truth)
- * - Blocked status from user_metadata
+ * - Blocked status from profiles table via API (source of truth)
  *
  * USER STORY SATISFIED:
  * - CSA-53: Persistent session
@@ -19,14 +19,14 @@
  *   - Persists session across page reloads
  *   - Updates automatically on login/logout
  *   - Provides loading state during initialization
- *   - Fetches role from database (not metadata)
+ *   - Fetches role and blocked status from database (not metadata)
  *
  * SECURITY CONSIDERATIONS:
  * - Uses Supabase's built-in session management
  * - Session tokens are stored in cookies (httpOnly when possible)
  * - Role comes from database via API (cannot be tampered with client-side)
+ * - Blocked status comes from database via API (cannot be tampered with client-side)
  * - Auth state listener ensures UI stays in sync with actual session
- * - Blocked status is checked and exposed to components
  *
  * USAGE EXAMPLE:
  * ```typescript
@@ -42,16 +42,16 @@
  * ```
  *
  * BEHAVIOR:
- * - On mount: Fetches current session from Supabase + role from API
+ * - On mount: Fetches current session from Supabase + role/blocked status from API
  * - Subscribes to auth state changes (login, logout, token refresh)
  * - Cleans up subscription on unmount
- * - Fetches role from /api/auth/user endpoint (DB source)
+ * - Fetches role and blocked status from /api/auth/user endpoint (DB source)
  */
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/src/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
-import { isBlocked, type UserRole } from "@/src/lib/auth-utils";
+import { type UserRole } from "@/src/lib/auth-utils";
 
 /**
  * Return type for useUser hook
@@ -90,11 +90,12 @@ export interface UseUserReturn {
 export function useUser(): UseUserReturn {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<UserRole>("customer");
+  const [blocked, setBlocked] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
   /**
-   * Fetches the current session from Supabase and role from API
+   * Fetches the current session from Supabase and role/blocked status from API
    * Called on mount and can be called manually via refetch()
    */
   const fetchUser = useCallback(async () => {
@@ -105,44 +106,49 @@ export function useUser(): UseUserReturn {
 
       setUser(currentUser);
 
-      // Fetch role from database if user exists
+      // Fetch role and blocked status from database if user exists
       if (currentUser) {
         try {
           const response = await fetch("/api/auth/user");
           if (response.ok) {
             const data = await response.json();
             setRole(data.user?.role || "customer");
+            setBlocked(data.user?.isBlocked || false);
           } else {
-            // API failed, default to customer
+            // API failed, default to customer and not blocked
             setRole("customer");
+            setBlocked(false);
           }
         } catch (error) {
-          console.error("Error fetching role:", error);
+          console.error("Error fetching user data:", error);
           setRole("customer");
+          setBlocked(false);
         }
       } else {
-        // No user, reset to customer
+        // No user, reset to customer and not blocked
         setRole("customer");
+        setBlocked(false);
       }
     } catch (error) {
       console.error("Error fetching user:", error);
       setUser(null);
       setRole("customer");
+      setBlocked(false);
     } finally {
       setLoading(false);
     }
   }, [supabase]);
 
   useEffect(() => {
-    // Fetch initial session and role
+    // Fetch initial session, role, and blocked status
     fetchUser();
 
     /**
      * Subscribe to auth state changes
      *
      * EVENTS HANDLED:
-     * - SIGNED_IN: User logs in → update user state + fetch role
-     * - SIGNED_OUT: User logs out → clear user state + reset role
+     * - SIGNED_IN: User logs in → update user state + fetch role/blocked status
+     * - SIGNED_OUT: User logs out → clear user state + reset role/blocked status
      * - TOKEN_REFRESHED: Session token refreshed → update user state
      * - USER_UPDATED: User metadata changed → update user state
      *
@@ -155,20 +161,26 @@ export function useUser(): UseUserReturn {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
 
-      // Fetch role when user logs in
+      // Fetch role and blocked status when user logs in
       if (currentUser) {
         try {
           const response = await fetch("/api/auth/user");
           if (response.ok) {
             const data = await response.json();
             setRole(data.user?.role || "customer");
+            setBlocked(data.user?.isBlocked || false);
+          } else {
+            setRole("customer");
+            setBlocked(false);
           }
         } catch (error) {
-          console.error("Error fetching role on auth change:", error);
+          console.error("Error fetching user data on auth change:", error);
           setRole("customer");
+          setBlocked(false);
         }
       } else {
         setRole("customer");
+        setBlocked(false);
       }
 
       setLoading(false);
@@ -179,12 +191,6 @@ export function useUser(): UseUserReturn {
       subscription.unsubscribe();
     };
   }, [supabase, fetchUser]);
-
-  /**
-   * Check if user is blocked
-   * Returns false if no user (can't be blocked if not logged in)
-   */
-  const blocked = isBlocked(user);
 
   return {
     user,
