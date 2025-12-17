@@ -137,13 +137,15 @@ PostgreSQL Database (RLS-secured)
 ### DevOps & Tooling
 
 - **GitHub** - Version control
-- **GitHub Actions** - CI/CD pipeline
+- **GitHub Actions** - CI/CD pipeline with automated testing
+- **Codecov** - Test coverage reporting and tracking
 - **Vercel** - Hosting and deployment
 - **Husky** - Git hooks
 - **Lint-staged** - Pre-commit linting
 - **ESLint** - Code linting
 - **Prettier** - Code formatting
 - **TypeScript Compiler** - Type checking
+- **Rimraf** - Cross-platform file deletion for cache cleanup
 
 ---
 
@@ -615,24 +617,61 @@ Use clear and consistent commit messages:
 
 ### Continuous Integration (GitHub Actions)
 
-Every PR triggers automated checks:
+Every push and PR triggers automated checks in this order:
 
-- Install dependencies
-- **Run Jest test suite** (`npm test` - all 466 tests must pass)
-- **Run E2E tests** (`npx playwright test` - 35 scenarios across 5 configurations)
-- TypeScript type checking (`tsc --noEmit`)
-- ESLint linting
+#### 1. **Code Quality**
+
+- ESLint linting (`npm run lint`)
 - Prettier format checking
-- Next.js build verification
-- Preview deployment on Vercel
+- TypeScript type checking (`npm run typecheck`)
 
-**All checks must pass before merging to `dev` or `main`.**
+#### 2. **Testing** (Quality Gates)
+
+- **Unit & Integration Tests**: 466 tests across 29 suites
+  - Command: `npm test -- --ci --coverage --maxWorkers=2`
+  - Coverage uploaded to Codecov
+  - Must have 0 failures to proceed
+
+- **End-to-End Tests**: 35 test scenarios
+  - Command: `npm run test:e2e -- --project=chromium`
+  - Tests customer checkout, staff workflow, manager operations
+  - Runs in Chromium for speed (full browser matrix runs weekly)
+  - Artifacts uploaded on failure (screenshots, traces, reports)
+
+#### 3. **Build Verification**
+
+- Next.js production build (`npm run build`)
+- Only runs if all tests pass
+
+**❌ Pipeline fails if ANY test fails. ✅ All checks must pass before merging.**
+
+### Full Browser Matrix Testing
+
+A separate workflow runs weekly (Sundays 2 AM UTC) and on releases:
+
+- Tests across **5 browser configurations**: Chromium, Firefox, WebKit, Mobile Chrome, Mobile Safari
+- 200+ test variations total
+- Ensures cross-browser compatibility before releases
+
+### Test Coverage Reporting
+
+- Coverage reports automatically uploaded to **Codecov**
+- PR comments show coverage changes
+- Minimum coverage: >80% on new code
+- Critical paths (auth, checkout, orders): >90% coverage
 
 ### Continuous Deployment
 
 - **Merges to `dev`** → Vercel preview deployment
 - **Merges to `main`** → Vercel production deployment
 - Automatic rollbacks on build failures
+
+### CI Documentation
+
+For detailed CI testing information, troubleshooting, and best practices, see:
+
+- **[CI Testing Guide](./docs/CI_TESTING_GUIDE.md)** - Comprehensive CI/CD testing documentation
+- **[E2E Testing Guide](./e2e/README.md)** - End-to-end test documentation
 
 ---
 
@@ -690,15 +729,20 @@ npm run start
 
 ```bash
 # Unit & Integration Tests (Jest)
-npm test                    # Run all Jest tests
+npm test                    # Run all Jest tests (466 tests)
 npm test -- --watch        # Watch mode for development
 npm test -- --coverage     # With coverage report
+npm run jest:coverage      # Alias for coverage report
 
 # End-to-End Tests (Playwright)
-npx playwright test        # Run all E2E tests
-npx playwright test --ui   # Interactive UI mode
+npm run test:e2e           # Run all E2E tests (35 scenarios, all browsers)
+npm run test:e2e:ui        # Interactive UI mode
 npx playwright test --headed  # Watch browser execute tests
 npx playwright show-report    # View test report
+
+# CI Testing (matches GitHub Actions)
+npm test -- --ci --coverage --maxWorkers=2  # Unit tests (CI mode)
+npm run test:e2e -- --project=chromium      # E2E tests (chromium only)
 ```
 
 ### **Type Checking**
