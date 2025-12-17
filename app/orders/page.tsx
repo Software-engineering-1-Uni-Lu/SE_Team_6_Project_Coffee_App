@@ -26,6 +26,7 @@ import {
   getOrderCustomerEmail,
   getOrderCustomerName,
 } from "@/src/types/order";
+import { jsPDF } from "jspdf";
 
 interface OrdersResponse {
   orders: Order[];
@@ -54,6 +55,94 @@ function DetailModal({
   const customerName = getOrderCustomerName(order);
   const customerEmail = getOrderCustomerEmail(order);
   const itemCount = order.items.reduce((sum, item) => sum + item.quantity, 0);
+
+  const renderInvoicePdf = () => {
+    const doc = new jsPDF();
+    const lineHeight = 8;
+    let y = 20;
+
+    const formatCurrency = (cents: number) => `€${(cents / 100).toFixed(2)}`;
+
+    const addLine = (text: string, options?: { bold?: boolean }) => {
+      if (options?.bold) {
+        doc.setFont("helvetica", "bold");
+      } else {
+        doc.setFont("helvetica", "normal");
+      }
+      doc.text(text, 20, y);
+      y += lineHeight;
+    };
+
+    const paymentStatus =
+      order.payment_status?.toLowerCase() === "paid" ? "PAID" : "UNPAID";
+    const orderStatusLabel = order.status.toUpperCase();
+    const unpaidLabel =
+      paymentStatus !== "PAID" ? "UNPAID — NOT A TAX INVOICE" : "";
+
+    // Header
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text("Café Aroma", 20, y);
+    y += lineHeight;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    addLine("123 Coffee Street");
+    addLine("Espresso City, EU");
+    addLine("hello@cafearoma.com");
+    y += 4;
+
+    // Invoice meta
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    addLine(`Invoice: ${order.id}`);
+    doc.setFont("helvetica", "normal");
+    addLine(
+      `Issued: ${formatOrderDate(order.created_at)} ${formatOrderTime(
+        order.created_at
+      )}`
+    );
+    addLine(`Order status: ${orderStatusLabel}`);
+    addLine(`Payment status: ${paymentStatus}`);
+    if (order.payment_method) {
+      addLine(`Payment method: ${order.payment_method.toUpperCase()}`);
+    }
+    if (unpaidLabel) {
+      addLine(unpaidLabel, { bold: true });
+    }
+    y += 4;
+
+    // Customer
+    doc.setFont("helvetica", "bold");
+    addLine("Bill To:");
+    doc.setFont("helvetica", "normal");
+    addLine(customerName);
+    addLine(customerEmail);
+    y += 4;
+
+    // Items header
+    doc.setFont("helvetica", "bold");
+    addLine("Items:");
+    doc.setFont("helvetica", "normal");
+    order.items.forEach((item) => {
+      addLine(
+        `${item.name} (${item.quantity} x ${formatCurrency(
+          item.price
+        )}) - ${formatCurrency(item.price * item.quantity)}`
+      );
+    });
+    y += 4;
+
+    // Summary
+    doc.setFont("helvetica", "bold");
+    addLine("Summary:");
+    doc.setFont("helvetica", "normal");
+    addLine(`Subtotal: ${formatCurrency(order.subtotal_cents)}`);
+    addLine(`Tax: ${formatCurrency(order.tax_cents)}`);
+    addLine(`Total: ${formatCurrency(order.total_cents)}`);
+
+    const filename = `invoice_${order.id}.pdf`;
+    doc.save(filename);
+  };
 
   return (
     <div
@@ -127,6 +216,13 @@ function DetailModal({
               Last updated: {formatOrderDate(order.updated_at)} at{" "}
               {formatOrderTime(order.updated_at)}
             </div>
+            <button
+              onClick={renderInvoicePdf}
+              className="mt-2 w-full rounded-md bg-[hsl(25,35%,25%)] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[hsl(25,40%,18%)] focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)] focus:ring-offset-2"
+              aria-label="Download invoice PDF"
+            >
+              Download Invoice
+            </button>
           </div>
         </div>
 

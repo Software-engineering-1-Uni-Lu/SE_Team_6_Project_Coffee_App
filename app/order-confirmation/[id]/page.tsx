@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/src/integrations/supabase/client";
 import { useUser } from "@/src/hooks/useUser";
+import { jsPDF } from "jspdf";
 
 /**
  * Purpose: Order confirmation page displaying order summary after checkout.
@@ -31,8 +32,12 @@ interface Order {
   notes?: string;
   points_earned: number;
   points_redeemed: number;
+  guest_name?: string | null;
+  guest_email?: string | null;
   created_at: string;
 }
+
+const formatCurrency = (cents: number) => `€ ${(cents / 100).toFixed(2)}`;
 
 export default function OrderConfirmationPage() {
   const params = useParams();
@@ -45,6 +50,7 @@ export default function OrderConfirmationPage() {
   const [error, setError] = useState<string | null>(null);
   const [emailInput, setEmailInput] = useState("");
   const [lookupLoading, setLookupLoading] = useState(false);
+  const [invoiceGenerating, setInvoiceGenerating] = useState(false);
 
   const cacheKey = useMemo(
     () => (orderId ? `order:${orderId}` : null),
@@ -161,12 +167,103 @@ export default function OrderConfirmationPage() {
     }
   };
 
+  const handleDownloadInvoice = () => {
+    if (!order) return;
+    setInvoiceGenerating(true);
+    try {
+      const doc = new jsPDF();
+      const lineHeight = 8;
+      let y = 20;
+
+      const addLine = (text: string, opts?: { bold?: boolean }) => {
+        doc.setFont("helvetica", opts?.bold ? "bold" : "normal");
+        doc.text(text, 20, y);
+        y += lineHeight;
+      };
+
+      const paymentStatus = (order.payment_status || "").toUpperCase();
+      const orderStatus =
+        order.status === "completed"
+          ? "COMPLETED"
+          : order.status === "cancelled"
+            ? "CANCELLED"
+            : "IN PROGRESS";
+      const unpaidLabel =
+        paymentStatus !== "PAID" ? "UNPAID — NOT A TAX INVOICE" : "";
+
+      // Header
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.text("Café Aroma", 20, y);
+      y += lineHeight;
+      doc.setFontSize(10);
+      addLine("123 Coffee Street");
+      addLine("Espresso City, EU");
+      addLine("hello@cafearoma.com");
+      y += 4;
+
+      // Invoice meta
+      doc.setFontSize(12);
+      addLine(`Invoice: ${order.id}`, { bold: true });
+      addLine(`Issued: ${formatDateTime(order.created_at)}`, { bold: false });
+      addLine(`Order status: ${orderStatus}`);
+      addLine(`Payment status: ${paymentStatus || "UNKNOWN"}`);
+      if (order.payment_method) {
+        addLine(`Payment method: ${order.payment_method.toUpperCase()}`);
+      }
+      if (unpaidLabel) addLine(unpaidLabel, { bold: true });
+      y += 4;
+
+      // Customer
+      addLine("Bill To:", { bold: true });
+      addLine(getCustomerName(), { bold: false });
+      addLine(getCustomerEmail(), { bold: false });
+      y += 4;
+
+      // Items
+      addLine("Items:", { bold: true });
+      doc.setFont("helvetica", "normal");
+      order.items.forEach((item) => {
+        addLine(
+          `${item.name} (${item.quantity} x ${formatCurrency(
+            item.price
+          )}) - ${formatCurrency(item.price * item.quantity)}`
+        );
+      });
+      y += 4;
+
+      // Summary
+      addLine("Summary:", { bold: true });
+      addLine(`Subtotal: ${formatCurrency(order.subtotal_cents)}`);
+      addLine(`Tax: ${formatCurrency(order.tax_cents)}`);
+      addLine(`Total: ${formatCurrency(order.total_cents)}`);
+
+      doc.save(`invoice_${order.id}.pdf`);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to generate invoice PDF"
+      );
+    } finally {
+      setInvoiceGenerating(false);
+    }
+  };
+
   const formatPrice = (cents: number) => {
-    return `€${(cents / 100).toFixed(2)}`;
+    return `€ ${(cents / 100).toFixed(2)}`;
   };
 
   const formatStatus = (status: string) => {
     return status.charAt(0).toUpperCase() + status.slice(1);
+  };
+
+  const getCustomerName = () => {
+    if (order?.guest_name) return order.guest_name;
+    return "Customer";
+  };
+
+  const getCustomerEmail = () => {
+    if (order?.guest_email) return order.guest_email;
+    return "Email not provided";
   };
 
   const formatDateTime = (dateString: string) => {
@@ -322,9 +419,21 @@ export default function OrderConfirmationPage() {
         <div className="rounded-lg border border-[hsl(25,25%,85%)] bg-white p-6 shadow-sm">
           {/* Order Info */}
           <section className="mb-6 border-b border-[hsl(25,25%,85%)] pb-6">
-            <h2 className="mb-4 text-2xl font-semibold text-[hsl(25,35%,25%)]">
-              Order Summary
-            </h2>
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-2xl font-semibold text-[hsl(25,35%,25%)]">
+                Order Summary
+              </h2>
+              {order && (
+                <button
+                  onClick={handleDownloadInvoice}
+                  disabled={invoiceGenerating}
+                  className="inline-flex items-center justify-center rounded-md bg-[hsl(25,35%,25%)] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[hsl(25,40%,18%)] disabled:cursor-not-allowed disabled:opacity-60"
+                  aria-label="Download invoice PDF"
+                >
+                  {invoiceGenerating ? "Preparing..." : "Download Invoice"}
+                </button>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="font-medium text-[hsl(25,20%,40%)]">
