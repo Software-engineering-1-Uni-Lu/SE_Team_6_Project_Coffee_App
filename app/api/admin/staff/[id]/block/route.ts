@@ -33,7 +33,7 @@ import { cookies } from "next/headers";
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -88,7 +88,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const staffId = params.id;
+    const { id: staffId } = await params;
 
     // Validate blocked parameter
     const { blocked } = body;

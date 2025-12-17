@@ -104,7 +104,7 @@ During testing, discovered the app uses a **cent-based pricing system** with Eur
 - **Tests:** 210 passed, 210 total
 - **Execution Time:** ~2.7 seconds average
 
-**Story 3 Contribution:**
+**Contribution:**
 
 - **navbar.test.tsx:** 49 tests (expanded from 3 basic tests)
   - Basic rendering: 3 tests

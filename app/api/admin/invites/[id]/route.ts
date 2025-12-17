@@ -26,8 +26,9 @@ import { cookies } from "next/headers";
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const cookieStore = await cookies();
 
@@ -80,13 +81,11 @@ export async function DELETE(
       );
     }
 
-    const inviteId = params.id;
-
     // Check if invite exists and get its details
     const { data: invite, error: fetchError } = await supabase
       .from("staff_invite_codes")
       .select("*")
-      .eq("id", inviteId)
+      .eq("id", id)
       .single();
 
     if (fetchError || !invite) {
@@ -119,7 +118,7 @@ export async function DELETE(
     const { error: deleteError } = await supabase
       .from("staff_invite_codes")
       .delete()
-      .eq("id", inviteId);
+      .eq("id", id);
 
     if (deleteError) {
       console.error("Delete invite error:", deleteError);
@@ -132,7 +131,7 @@ export async function DELETE(
     // Log the deletion
     await supabase.from("audit_log").insert({
       entity_type: "invite_code",
-      entity_id: inviteId,
+      entity_id: id,
       action: "invite_revoked",
       actor_id: user.id,
       actor_email: user.email,

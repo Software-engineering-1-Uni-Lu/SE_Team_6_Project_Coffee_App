@@ -28,6 +28,8 @@ const mockSupabase = {
 describe("useCart Hook", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Clear localStorage to prevent cart state from persisting between tests
+    localStorage.clear();
     (createClient as jest.Mock).mockReturnValue(mockSupabase);
 
     // Default mock implementations

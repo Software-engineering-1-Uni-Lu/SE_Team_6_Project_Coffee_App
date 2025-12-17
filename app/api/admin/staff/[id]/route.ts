@@ -40,7 +40,7 @@ import { createClient as createAdminClient } from "@supabase/supabase-js";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -94,7 +94,7 @@ export async function GET(
       );
     }
 
-    const staffId = params.id;
+    const { id: staffId } = await params;
 
     // Check if current user can manage this user
     const { data: canManage, error: permError } = await supabase.rpc(
@@ -157,7 +157,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -212,7 +212,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const staffId = params.id;
+    const { id: staffId } = await params;
 
     // Prevent self-modification
     if (user.id === staffId) {
@@ -415,7 +415,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -468,7 +468,7 @@ export async function DELETE(
       );
     }
 
-    const staffId = params.id;
+    const { id: staffId } = await params;
 
     // Prevent deleting own account via this endpoint
     if (user.id === staffId) {
