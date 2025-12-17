@@ -1,7 +1,7 @@
 # PR Description: Complete Authentication System with Manager Role & Invite-Based Registration
 
 **Branch:** `feature/authentication-complete`
-**Author:** Team
+**Author:** Anthony Stassart
 **Date:** 2025-12-12
 **Status:** ✅ Complete and Ready for Merge
 

@@ -1,7 +1,7 @@
 # PR Description: Authentication System Scaffold
 
 **Branch:** `feature/authentication-scaffold`
-**Author:** Team
+**Author:** Anthony Stassart
 **Date:** 2025-12-12
 
 ---
