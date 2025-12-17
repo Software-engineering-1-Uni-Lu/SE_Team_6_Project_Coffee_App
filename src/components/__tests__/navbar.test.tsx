@@ -178,11 +178,12 @@ describe("Navbar Component", () => {
       expect(menuLink).toBeInTheDocument();
     });
 
-    it("shows Customer dropdown button", () => {
+    it("shows My Orders link for authenticated customers", () => {
       render(<Navbar onCartOpen={jest.fn()} />);
 
-      const customerButton = screen.getByRole("button", { name: /customer/i });
-      expect(customerButton).toBeInTheDocument();
+      const ordersLink = screen.getByRole("link", { name: /my orders/i });
+      expect(ordersLink).toBeInTheDocument();
+      expect(ordersLink).toHaveAttribute("href", "/orders");
     });
 
     it("shows Cart and Checkout for customers", () => {
