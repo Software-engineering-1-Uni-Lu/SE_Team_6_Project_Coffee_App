@@ -2,17 +2,17 @@
  * PATCH /api/orders/[id]
  *
  * PURPOSE:
- * Update order status. Allows staff to accept, decline, and complete orders.
+ * Update order status. Allows staff, admin, and manager to accept, decline, and complete orders.
  * Server-side handling ensures RLS policies are properly enforced.
  *
  * USER STORIES SATISFIED:
  * - CSA-122: Update order status via Supabase
- * - Staff can transition orders through workflow stages
+ * - Staff, admin, and manager can transition orders through workflow stages
  *
  * SECURITY:
  * - Uses server-side Supabase client with proper RLS enforcement
  * - Validates order status transitions
- * - Restricted to staff and admin roles via RLS policies
+ * - Restricted to staff, admin, and manager roles via RLS policies
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -99,17 +99,17 @@ export async function PATCH(
       );
     }
 
-    // Verify user has staff or admin role
+    // Verify user has staff, admin, or manager role
     const { data: roleData, error: roleError } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", user.id)
-      .in("role", ["staff", "admin"])
+      .in("role", ["staff", "admin", "manager"])
       .single();
 
     if (roleError || !roleData) {
       return NextResponse.json(
-        { error: "Only staff and admin can update orders" },
+        { error: "Only staff, admin, and manager can update orders" },
         { status: 403 }
       );
     }
