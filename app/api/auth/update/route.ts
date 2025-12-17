@@ -18,6 +18,9 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { getUserRole, isValidRole } from "@/src/lib/auth-utils";
 
+// Force dynamic rendering since this route uses cookies() for authentication
+export const dynamic = "force-dynamic";
+
 export async function PATCH(request: NextRequest) {
   try {
     const cookieStore = await cookies();
