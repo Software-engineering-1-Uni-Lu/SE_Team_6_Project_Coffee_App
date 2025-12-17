@@ -257,8 +257,17 @@ export async function middleware(request: NextRequest) {
    * PUBLIC ROUTES
    * These routes are accessible to everyone (except blocked users - checked above)
    */
-  const publicRoutes = ["/", "/menu", "/about", "/contact"];
+  const publicRoutes = ["/", "/menu", "/about", "/contact", "/checkout"];
   if (publicRoutes.includes(pathname)) {
+    return response;
+  }
+
+  /**
+   * ORDER CONFIRMATION ROUTES
+   * These routes are accessible to everyone (guests and authenticated users)
+   * Guests need to access order confirmation after checkout
+   */
+  if (pathname.startsWith("/order-confirmation/")) {
     return response;
   }
 
