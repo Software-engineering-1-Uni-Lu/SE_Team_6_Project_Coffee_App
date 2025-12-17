@@ -1,7 +1,7 @@
 # PR Description: feat/customer-foundation/View-order-info-status
 
 **Branch:** `feat/customer-foundation/View-order-info-status`  
-**Author:** Assistant  
+**Author:** Zekonja Filip  
 **Date:** 2025-12-17
 
 ---
