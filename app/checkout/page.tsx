@@ -319,9 +319,24 @@ export default function CheckoutPage() {
 
         toast.success("Order placed successfully!");
 
-        // Clear cart and redirect
-        await clearCart();
-        router.push(`/order-confirmation/${(order as any).id}`);
+        const orderId = (order as any).id as string;
+
+        // Best-effort cart clear; do not block redirect on failure
+        try {
+          await clearCart();
+        } catch (clearErr) {
+          console.warn("Failed to clear cart after guest order", clearErr);
+        }
+
+        try {
+          // Cache order for confirmation page (guest can't fetch via RLS)
+          sessionStorage.setItem(`order:${orderId}`, JSON.stringify(order));
+        } catch {
+          // Ignore storage failures
+        }
+
+        // Redirect to confirmation
+        router.push(`/order-confirmation/${orderId}`);
         return;
       }
 

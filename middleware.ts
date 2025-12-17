@@ -469,14 +469,9 @@ export async function middleware(request: NextRequest) {
    * PROFILE AND OTHER PROTECTED ROUTES
    *
    * Routes that require authentication but no specific role
-   * Examples: /profile, /orders, /cart/checkout
+   * Examples: /profile, /cart/checkout
    */
-  const protectedRoutes = [
-    "/auth/profile",
-    "/profile",
-    "/orders",
-    "/cart/checkout",
-  ];
+  const protectedRoutes = ["/auth/profile", "/profile", "/cart/checkout"];
   if (protectedRoutes.some((route) => pathname.startsWith(route))) {
     if (!user) {
       const url = request.nextUrl.clone();
