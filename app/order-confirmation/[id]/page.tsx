@@ -439,9 +439,19 @@ export default function OrderConfirmationPage() {
                 <span className="font-medium text-[hsl(25,20%,40%)]">
                   Order Number:
                 </span>
-                <p className="font-mono text-[hsl(25,35%,25%)]">
-                  {order.id.slice(0, 8)}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="font-mono text-[hsl(25,35%,25%)]">
+                    {order.id.slice(0, 8)}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard.writeText(order.id)}
+                    className="rounded-md border border-[hsl(35,25%,85%)] bg-[hsl(35,20%,97%)] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[hsl(25,35%,30%)] transition-colors hover:bg-[hsl(35,20%,93%)]"
+                    aria-label="Copy full order ID"
+                  >
+                    Copy
+                  </button>
+                </div>
               </div>
               <div>
                 <span className="font-medium text-[hsl(25,20%,40%)]">
