@@ -1,7 +1,7 @@
 # PR Description: Complete Authentication Integration
 
 **Branch:** `feature/auth-setup` → `dev`
-**Author:** Team 6
+**Author:** Anthony Stassart
 **Date:** 2025-12-13
 
 ---

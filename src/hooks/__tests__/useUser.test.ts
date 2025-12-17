@@ -226,7 +226,7 @@ describe("useUser Hook", () => {
   });
 
   describe("Blocked User", () => {
-    it("detects blocked user from metadata", async () => {
+    it("detects blocked user from API response", async () => {
       const blockedUser = {
         id: "user-123",
         email: "blocked@example.com",
@@ -240,7 +240,7 @@ describe("useUser Hook", () => {
 
       (global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ user: { role: "customer" } }),
+        json: async () => ({ user: { role: "customer", isBlocked: true } }),
       });
 
       const { result } = renderHook(() => useUser());
@@ -266,7 +266,7 @@ describe("useUser Hook", () => {
 
       (global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ user: { role: "customer" } }),
+        json: async () => ({ user: { role: "customer", isBlocked: false } }),
       });
 
       const { result } = renderHook(() => useUser());

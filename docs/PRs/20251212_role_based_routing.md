@@ -1,7 +1,7 @@
 # PR Description: Role-Based Routing & Dashboard Scaffolds
 
 **Branch:** `feature/role-based-routing`
-**Author:** Team
+**Author:** Anthony Stassart
 **Date:** 2025-12-12
 
 ---
