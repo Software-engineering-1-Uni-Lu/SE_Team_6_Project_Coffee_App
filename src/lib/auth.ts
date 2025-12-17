@@ -330,7 +330,7 @@ export async function getRedirectPath(user: User | null): Promise<string> {
   switch (role) {
     case "admin":
     case "manager":
-      return "/admin";
+      return "/manager/dashboard";
     case "staff":
       return "/staff";
     case "customer":

@@ -61,13 +61,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
         if (user) {
           // Load cart from Supabase for authenticated user
+          // Use maybeSingle() to avoid errors when cart doesn't exist yet
           const { data, error } = await supabase
             .from("carts")
             .select("items")
             .eq("user_id", user.id)
-            .single();
+            .maybeSingle();
 
-          // PGRST116 = no rows returned (expected for new users)
+          // Log errors (except "not found" which is expected for new users)
           if (error && error.code !== "PGRST116") {
             console.error("Error loading cart:", error);
           }

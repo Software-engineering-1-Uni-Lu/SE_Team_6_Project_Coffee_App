@@ -425,29 +425,61 @@ export async function middleware(request: NextRequest) {
   }
 
   /**
-   * ADMIN ROUTES (/admin, /admin/*)
+   * MANAGER ROUTES (/manager, /manager/*)
    *
-   * BEHAVIOR (UPDATED):
-   * - Admin: Allow access
-   * - Manager: Allow access (managers can access admin dashboard)
+   * BEHAVIOR:
+   * - Manager: Allow access
+   * - Admin: Allow access (admins can access manager dashboard)
    * - Staff: Redirect to /staff
    * - Customer: Redirect to /menu
    * - Unauthenticated: Redirect to /auth/login
    *
-   * ARCHITECTURE NOTE (UPDATED):
-   * Admin dashboard is accessible to both managers and admins.
-   * Managers have the same dashboard access but fewer permissions
-   * (permission enforcement is handled at the feature level, not routing).
+   * NOTE: /manager routes are essentially the same as /admin routes
+   * but kept separate for clarity. Both manager and admin can access.
    *
-   * ROLE HIERARCHY:
-   * - /admin: Management dashboard (accessible to manager + admin)
-   * - /staff: Primary dashboard (accessible to staff + manager + admin)
-   * - /menu: Customer dashboard
+   * IMPORTANT: The getUser() call above already refreshed the session,
+   * so the cookies are set on the response. This ensures the server
+   * component can read the session.
+   */
+  if (pathname === "/manager" || pathname.startsWith("/manager/")) {
+    if (!user) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/auth/login";
+      url.searchParams.set("redirect", pathname);
+      return NextResponse.redirect(url);
+    }
+
+    const role = await getRoleFromDB(supabase, user.id);
+
+    if (role === "customer") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/menu";
+      return NextResponse.redirect(url);
+    }
+    if (role === "staff") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/staff";
+      return NextResponse.redirect(url);
+    }
+
+    // Manager and admin can access /manager routes
+    // Session has already been refreshed by getUser() above
+    return response;
+  }
+
+  /**
+   * ADMIN ROUTES (/admin, /admin/*)
    *
-   * FOR UI DEVELOPERS:
-   * - Both manager and admin can access /admin routes
-   * - Permission checks within features determine what actions are allowed
-   * - DO NOT add route-level restrictions between manager and admin
+   * BEHAVIOR (UPDATED):
+   * - All /admin routes redirect to /manager/dashboard
+   * - This ensures both admins and managers use the same dashboard
+   * - Staff: Redirect to /staff
+   * - Customer: Redirect to /menu
+   * - Unauthenticated: Redirect to /auth/login
+   *
+   * ARCHITECTURE NOTE:
+   * The /admin route now redirects to /manager/dashboard for consistency.
+   * Both admins and managers use the same dashboard at /manager/dashboard.
    */
   if (pathname === "/admin" || pathname.startsWith("/admin/")) {
     if (!user) {
@@ -470,8 +502,10 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    // Manager and admin can access /admin routes
-    return response;
+    // Manager and admin: redirect to /manager/dashboard
+    const url = request.nextUrl.clone();
+    url.pathname = "/manager/dashboard";
+    return NextResponse.redirect(url);
   }
 
   /**
