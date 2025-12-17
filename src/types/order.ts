@@ -79,6 +79,7 @@ export const ACTIVE_ORDER_STATUSES: OrderStatus[] = [
   "pending",
   "confirmed",
   "preparing",
+  "ready",
 ];
 
 /**
