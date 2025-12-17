@@ -36,6 +36,9 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 
+// Force dynamic rendering since this route uses cookies() for authentication
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   try {
     const cookieStore = await cookies();
