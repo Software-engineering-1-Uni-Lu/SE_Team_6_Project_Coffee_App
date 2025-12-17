@@ -13,8 +13,8 @@ interface OrderItem {
   id: string;
   name: string;
   quantity: number;
-  price_cents: number;
-  modifiers?: Array<{ name: string; price_cents: number }>;
+  price: number;
+  modifiers?: Array<{ label: string; price: number }>;
 }
 
 interface Order {
@@ -91,6 +91,27 @@ export default function OrderConfirmationPage() {
       hour: "2-digit",
       minute: "2-digit",
     });
+  };
+
+  const getRelativeTime = (dateString: string) => {
+    const targetDate = new Date(dateString);
+    const now = new Date();
+    const diffMs = targetDate.getTime() - now.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+
+    if (diffMins < 0) return "Time has passed";
+    if (diffMins < 1) return "Now";
+    if (diffMins < 60)
+      return `In ${diffMins} minute${diffMins !== 1 ? "s" : ""}`;
+
+    const hours = Math.floor(diffMins / 60);
+    const mins = diffMins % 60;
+
+    if (mins === 0) {
+      return `In ${hours} hour${hours !== 1 ? "s" : ""}`;
+    }
+
+    return `In ${hours}h ${mins}m`;
   };
 
   if (loading) {
@@ -177,6 +198,9 @@ export default function OrderConfirmationPage() {
                   <p className="text-[hsl(25,35%,25%)]">
                     {formatDateTime(order.pickup_time)}
                   </p>
+                  <p className="text-sm text-[hsl(25,35%,55%)]">
+                    ({getRelativeTime(order.pickup_time)})
+                  </p>
                 </div>
               )}
             </div>
@@ -206,16 +230,15 @@ export default function OrderConfirmationPage() {
                       <div className="ml-8 mt-1 text-sm text-[hsl(25,20%,40%)]">
                         {item.modifiers.map((mod, modIndex) => (
                           <div key={modIndex}>
-                            + {mod.name}{" "}
-                            {mod.price_cents > 0 &&
-                              `(${formatPrice(mod.price_cents)})`}
+                            + {mod.label}{" "}
+                            {mod.price > 0 && `(${formatPrice(mod.price)})`}
                           </div>
                         ))}
                       </div>
                     )}
                   </div>
                   <span className="font-medium text-[hsl(25,35%,25%)]">
-                    {formatPrice(item.price_cents * item.quantity)}
+                    {formatPrice(item.price * item.quantity)}
                   </span>
                 </div>
               ))}

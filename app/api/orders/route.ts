@@ -43,6 +43,7 @@ export async function POST(request: NextRequest) {
       payment_status,
       guest_name,
       guest_email,
+      pickup_time,
     } = body;
 
     // Validate required fields
@@ -164,6 +165,7 @@ export async function POST(request: NextRequest) {
       total_cents: number;
       payment_method: "card" | "cash";
       payment_status: string;
+      pickup_time: string | null;
     } = {
       customer_id: user ? user.id : null,
       guest_name: user ? null : guest_name?.trim() || null,
@@ -176,6 +178,7 @@ export async function POST(request: NextRequest) {
       payment_method,
       payment_status:
         payment_status || (payment_method === "card" ? "paid" : "unpaid"),
+      pickup_time: pickup_time || null,
     };
 
     // Insert order into database
