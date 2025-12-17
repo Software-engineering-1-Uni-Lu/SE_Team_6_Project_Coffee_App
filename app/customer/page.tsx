@@ -54,7 +54,7 @@
  *
  *    b) Quick Actions Card
  *       - "Browse Menu" → /menu
- *       - "View My Orders" → /customer/orders
+ *       - "View My Orders" → /orders
  *       - "Cart" → /customer/cart
  *       - "Loyalty Points" → Display current points
  *
@@ -174,7 +174,7 @@
  * - /customer (this page) - Dashboard
  * - /menu - Public menu (browsing)
  * - /customer/cart - Shopping cart
- * - /customer/orders - Order history
+ * - /orders - Order history
  * - /auth/profile - Account settings
  *
  * Customer users CANNOT access:

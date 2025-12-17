@@ -54,27 +54,14 @@ export function Navbar({ onCartOpen }: NavbarProps) {
                 </Link>
               )}
 
-              {/* Customer dropdown - only show to customers */}
+              {/* My Orders link - only show to customers */}
               {user && role === "customer" && (
-                <div className="group relative">
-                  <button className="text-sm font-medium text-[hsl(25,35%,25%)] transition-colors hover:text-[hsl(25,40%,15%)]">
-                    Customer
-                  </button>
-                  <div className="invisible absolute left-0 mt-2 w-48 rounded-md bg-white opacity-0 shadow-lg transition-all group-hover:visible group-hover:opacity-100">
-                    <Link
-                      href="/customer/orders"
-                      className="block px-4 py-2 text-sm text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,95%)]"
-                    >
-                      My Orders
-                    </Link>
-                    <Link
-                      href="/customer/account"
-                      className="block px-4 py-2 text-sm text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,95%)]"
-                    >
-                      My Account
-                    </Link>
-                  </div>
-                </div>
+                <Link
+                  href="/orders"
+                  className="text-sm font-medium text-[hsl(25,35%,25%)] transition-colors hover:text-[hsl(25,40%,15%)]"
+                >
+                  My Orders
+                </Link>
               )}
 
               {/* Admin dropdown - show to manager and admin */}

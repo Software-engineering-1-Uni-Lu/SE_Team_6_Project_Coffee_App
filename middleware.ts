@@ -257,8 +257,17 @@ export async function middleware(request: NextRequest) {
    * PUBLIC ROUTES
    * These routes are accessible to everyone (except blocked users - checked above)
    */
-  const publicRoutes = ["/", "/menu", "/about", "/contact"];
+  const publicRoutes = ["/", "/menu", "/about", "/contact", "/checkout"];
   if (publicRoutes.includes(pathname)) {
+    return response;
+  }
+
+  /**
+   * ORDER CONFIRMATION ROUTES
+   * These routes are accessible to everyone (guests and authenticated users)
+   * Guests need to access order confirmation after checkout
+   */
+  if (pathname.startsWith("/order-confirmation/")) {
     return response;
   }
 
@@ -469,14 +478,9 @@ export async function middleware(request: NextRequest) {
    * PROFILE AND OTHER PROTECTED ROUTES
    *
    * Routes that require authentication but no specific role
-   * Examples: /profile, /orders, /cart/checkout
+   * Examples: /profile, /cart/checkout
    */
-  const protectedRoutes = [
-    "/auth/profile",
-    "/profile",
-    "/orders",
-    "/cart/checkout",
-  ];
+  const protectedRoutes = ["/auth/profile", "/profile", "/cart/checkout"];
   if (protectedRoutes.some((route) => pathname.startsWith(route))) {
     if (!user) {
       const url = request.nextUrl.clone();

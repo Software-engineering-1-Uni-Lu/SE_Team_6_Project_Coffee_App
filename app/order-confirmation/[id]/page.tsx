@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/src/integrations/supabase/client";
+import { useUser } from "@/src/hooks/useUser";
 
 /**
  * Purpose: Order confirmation page displaying order summary after checkout.
@@ -37,19 +38,41 @@ export default function OrderConfirmationPage() {
   const params = useParams();
   const router = useRouter();
   const orderId = params?.id as string;
+  const { user, loading: userLoading } = useUser();
 
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [emailInput, setEmailInput] = useState("");
+  const [lookupLoading, setLookupLoading] = useState(false);
+
+  const cacheKey = useMemo(
+    () => (orderId ? `order:${orderId}` : null),
+    [orderId]
+  );
 
   useEffect(() => {
-    if (!orderId) {
-      setError("Order ID is missing");
-      setLoading(false);
+    if (!orderId || userLoading) {
       return;
     }
 
-    async function fetchOrder() {
+    const tryLoadFromCache = () => {
+      if (!cacheKey) return false;
+      try {
+        const cached = sessionStorage.getItem(cacheKey);
+        if (cached) {
+          const parsed: Order = JSON.parse(cached);
+          setOrder(parsed);
+          setLoading(false);
+          return true;
+        }
+      } catch {
+        // ignore cache errors
+      }
+      return false;
+    };
+
+    async function fetchOrderAuthenticated() {
       try {
         const supabase = createClient();
         const { data, error: fetchError } = await supabase
@@ -64,6 +87,14 @@ export default function OrderConfirmationPage() {
         }
 
         setOrder(data);
+        // Cache for potential later guest view
+        if (cacheKey) {
+          try {
+            sessionStorage.setItem(cacheKey, JSON.stringify(data));
+          } catch {
+            // ignore cache errors
+          }
+        }
       } catch (err) {
         setError("Failed to load order");
       } finally {
@@ -71,8 +102,64 @@ export default function OrderConfirmationPage() {
       }
     }
 
-    fetchOrder();
-  }, [orderId]);
+    // Guests: try cache first, then wait for manual lookup
+    if (!user) {
+      const cached = tryLoadFromCache();
+      if (!cached) {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Authenticated path
+    fetchOrderAuthenticated();
+  }, [cacheKey, orderId, user, userLoading]);
+
+  const handleGuestLookup = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!orderId || !emailInput.trim()) {
+      setError("Please enter the email used at checkout.");
+      return;
+    }
+    setLookupLoading(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/orders/lookup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ orderId, email: emailInput.trim() }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Unable to find order");
+      }
+
+      const found =
+        (data.orders as Order[] | undefined)?.find((o) => o.id === orderId) ||
+        null;
+
+      if (!found) {
+        setError("Order not found for that email");
+        return;
+      }
+
+      setOrder(found);
+      if (cacheKey) {
+        try {
+          sessionStorage.setItem(cacheKey, JSON.stringify(found));
+        } catch {
+          // ignore cache errors
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to look up order");
+    } finally {
+      setLookupLoading(false);
+    }
+  };
 
   const formatPrice = (cents: number) => {
     return `€${(cents / 100).toFixed(2)}`;
@@ -126,6 +213,50 @@ export default function OrderConfirmationPage() {
     );
   }
 
+  if (!loading && !order && !user && !error) {
+    return (
+      <main className="container mx-auto px-4 py-8">
+        <div className="mx-auto flex min-h-[400px] max-w-lg flex-col gap-4">
+          <div className="rounded-lg border border-[hsl(35,25%,85%)] bg-white p-4 shadow-sm">
+            <h2 className="text-lg font-semibold text-[hsl(25,35%,25%)]">
+              Find your order
+            </h2>
+            <p className="text-sm text-[hsl(25,25%,45%)]">
+              Enter the email you used at checkout to view your guest order.
+            </p>
+            <form onSubmit={handleGuestLookup} className="mt-4 space-y-3">
+              <input
+                type="email"
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                placeholder="you@example.com"
+                className="w-full rounded-md border border-[hsl(35,25%,85%)] px-3 py-2 text-sm text-[hsl(25,35%,25%)] focus:border-[hsl(25,35%,25%)] focus:outline-none"
+                required
+              />
+              <button
+                type="submit"
+                disabled={lookupLoading}
+                className="w-full rounded-md bg-[hsl(25,35%,25%)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[hsl(25,40%,20%)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {lookupLoading ? "Looking up..." : "Find my order"}
+              </button>
+              <p className="text-xs text-[hsl(25,25%,45%)]">
+                We ask for your email to make sure only you can view this guest
+                order.
+              </p>
+            </form>
+          </div>
+          <button
+            onClick={() => router.push("/menu")}
+            className="rounded-md bg-[hsl(25,75%,47%)] px-6 py-2 text-white hover:bg-[hsl(25,75%,42%)]"
+          >
+            Return to Menu
+          </button>
+        </div>
+      </main>
+    );
+  }
+
   if (error || !order) {
     return (
       <main className="container mx-auto px-4 py-8">
@@ -133,6 +264,35 @@ export default function OrderConfirmationPage() {
           <div className="text-xl text-red-600">
             {error || "Order not found"}
           </div>
+          {!user && (
+            <form
+              onSubmit={handleGuestLookup}
+              className="w-full max-w-md space-y-3 rounded-lg border border-[hsl(35,25%,85%)] bg-white p-4 shadow-sm"
+            >
+              <label className="block text-sm font-medium text-[hsl(25,35%,25%)]">
+                Enter the email you used at checkout to view your order
+              </label>
+              <input
+                type="email"
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                placeholder="you@example.com"
+                className="w-full rounded-md border border-[hsl(35,25%,85%)] px-3 py-2 text-sm text-[hsl(25,35%,25%)] focus:border-[hsl(25,35%,25%)] focus:outline-none"
+                required
+              />
+              <button
+                type="submit"
+                disabled={lookupLoading}
+                className="w-full rounded-md bg-[hsl(25,35%,25%)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[hsl(25,40%,20%)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {lookupLoading ? "Looking up..." : "Find my order"}
+              </button>
+              <p className="text-xs text-[hsl(25,25%,45%)]">
+                We ask for your email to make sure only you can view this guest
+                order.
+              </p>
+            </form>
+          )}
           <button
             onClick={() => router.push("/menu")}
             className="rounded-md bg-[hsl(25,75%,47%)] px-6 py-2 text-white hover:bg-[hsl(25,75%,42%)]"
@@ -305,7 +465,7 @@ export default function OrderConfirmationPage() {
         {/* Action Buttons */}
         <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:justify-center">
           <button
-            onClick={() => router.push("/customer/orders")}
+            onClick={() => router.push("/orders")}
             className="rounded-md border border-[hsl(25,35%,25%)] px-6 py-3 font-medium text-[hsl(25,35%,25%)] hover:bg-[hsl(25,25%,95%)]"
           >
             View All Orders

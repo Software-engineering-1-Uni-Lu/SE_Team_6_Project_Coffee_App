@@ -35,6 +35,8 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+const GUEST_CART_KEY = "guest_cart_items";
+
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -75,6 +77,31 @@ export function CartProvider({ children }: { children: ReactNode }) {
             const cartData = data as { items: CartItem[] | null } | null;
             if (cartData?.items && Array.isArray(cartData.items)) {
               setItems(cartData.items);
+            }
+          }
+          // Clear guest cart when user logs in
+          try {
+            localStorage.removeItem(GUEST_CART_KEY);
+          } catch {
+            // Ignore localStorage errors
+          }
+        } else {
+          // For guests, load cart from localStorage
+          try {
+            const stored = localStorage.getItem(GUEST_CART_KEY);
+            if (stored) {
+              const parsedItems = JSON.parse(stored);
+              if (Array.isArray(parsedItems)) {
+                setItems(parsedItems);
+              }
+            }
+          } catch (error) {
+            console.error("Error loading guest cart from localStorage:", error);
+            // Clear corrupted data
+            try {
+              localStorage.removeItem(GUEST_CART_KEY);
+            } catch {
+              // Ignore
             }
           }
         }
@@ -142,13 +169,21 @@ export function CartProvider({ children }: { children: ReactNode }) {
           ];
         }
 
-        // Persist to Supabase
+        // Persist to Supabase (for authenticated users) or localStorage (for guests)
         persistCart(newItems);
+        if (!userId) {
+          // Save to localStorage for guests
+          try {
+            localStorage.setItem(GUEST_CART_KEY, JSON.stringify(newItems));
+          } catch (error) {
+            console.error("Error saving guest cart to localStorage:", error);
+          }
+        }
 
         return newItems;
       });
     },
-    [persistCart]
+    [persistCart, userId]
   );
 
   // Remove item from cart
@@ -157,10 +192,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
       setItems((prevItems) => {
         const newItems = prevItems.filter((i) => i.cartItemId !== cartItemId);
         persistCart(newItems);
+        if (!userId) {
+          // Save to localStorage for guests
+          try {
+            localStorage.setItem(GUEST_CART_KEY, JSON.stringify(newItems));
+          } catch (error) {
+            console.error("Error saving guest cart to localStorage:", error);
+          }
+        }
         return newItems;
       });
     },
-    [persistCart]
+    [persistCart, userId]
   );
 
   // Update item quantity
@@ -181,17 +224,33 @@ export function CartProvider({ children }: { children: ReactNode }) {
           i.cartItemId === cartItemId ? { ...i, quantity } : i
         );
         persistCart(newItems);
+        if (!userId) {
+          // Save to localStorage for guests
+          try {
+            localStorage.setItem(GUEST_CART_KEY, JSON.stringify(newItems));
+          } catch (error) {
+            console.error("Error saving guest cart to localStorage:", error);
+          }
+        }
         return newItems;
       });
     },
-    [persistCart, removeItem]
+    [persistCart, removeItem, userId]
   );
 
   // Clear cart
   const clearCart = useCallback(async () => {
     setItems([]);
     await persistCart([]);
-  }, [persistCart]);
+    if (!userId) {
+      // Clear localStorage for guests
+      try {
+        localStorage.removeItem(GUEST_CART_KEY);
+      } catch (error) {
+        console.error("Error clearing guest cart from localStorage:", error);
+      }
+    }
+  }, [persistCart, userId]);
 
   const value: CartContextType = {
     items,
