@@ -88,7 +88,9 @@ describe("PATCH /api/orders/[id]", () => {
       const data = await response.json();
 
       expect(response.status).toBe(403);
-      expect(data.error).toBe("Only staff and admin can update orders");
+      expect(data.error).toBe(
+        "Only staff, admin, and manager can update orders"
+      );
     });
 
     it("should return 403 for manager", async () => {
@@ -122,7 +124,9 @@ describe("PATCH /api/orders/[id]", () => {
       const data = await response.json();
 
       expect(response.status).toBe(403);
-      expect(data.error).toBe("Only staff and admin can update orders");
+      expect(data.error).toBe(
+        "Only staff, admin, and manager can update orders"
+      );
     });
   });
 
