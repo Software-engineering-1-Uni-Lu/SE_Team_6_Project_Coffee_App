@@ -41,7 +41,7 @@ describe("useCart Hook", () => {
     mockSupabase.from.mockReturnValue({
       select: jest.fn().mockReturnThis(),
       eq: jest.fn().mockReturnThis(),
-      single: jest.fn().mockResolvedValue({ data: null, error: null }),
+      maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
       upsert: jest.fn().mockResolvedValue({ error: null }),
       delete: jest.fn().mockReturnThis(),
     });
@@ -85,7 +85,7 @@ describe("useCart Hook", () => {
       mockSupabase.from.mockReturnValueOnce({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
-        single: jest.fn().mockResolvedValue({
+        maybeSingle: jest.fn().mockResolvedValue({
           data: { items: mockCartItems },
           error: null,
         }),
@@ -114,7 +114,7 @@ describe("useCart Hook", () => {
       mockSupabase.from.mockReturnValueOnce({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
-        single: jest.fn().mockResolvedValue({
+        maybeSingle: jest.fn().mockResolvedValue({
           data: null,
           error: { code: "ERROR", message: "Database error" },
         }),
@@ -143,7 +143,7 @@ describe("useCart Hook", () => {
       mockSupabase.from.mockReturnValueOnce({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
-        single: jest.fn().mockResolvedValue({
+        maybeSingle: jest.fn().mockResolvedValue({
           data: null,
           error: { code: "PGRST116", message: "No rows returned" },
         }),
