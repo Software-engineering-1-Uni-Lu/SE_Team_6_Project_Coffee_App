@@ -18,6 +18,7 @@ import { formatPrice } from "@/src/lib/cart-utils";
 import { createClient } from "@/src/integrations/supabase/client";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { toast } from "sonner";
+import { PickupTimePicker } from "@/src/components/pickup-time-picker";
 
 const TAX_RATE = 0.1; // 10% tax rate
 
@@ -79,6 +80,7 @@ export default function CheckoutPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"card" | "cash">("card");
+  const [pickupTime, setPickupTime] = useState<Date | null>(null);
 
   // Calculate totals (EU VAT logic - prices include tax)
   const total = totalPrice; // Total stays the same as cart
@@ -200,6 +202,7 @@ export default function CheckoutPage() {
         total_cents: number;
         payment_method: "card" | "cash";
         payment_status: string;
+        pickup_time: string | null;
       } = {
         customer_id: isActuallyGuest ? null : currentUser?.id || null,
         guest_name: isActuallyGuest ? data.guest_name?.trim() || null : null,
@@ -211,6 +214,7 @@ export default function CheckoutPage() {
         total_cents: total,
         payment_method: data.paymentMethod,
         payment_status: data.paymentMethod === "card" ? "paid" : "unpaid",
+        pickup_time: pickupTime ? pickupTime.toISOString() : null,
       };
 
       // GUEST ORDERS: Client-side only (bypass API route completely)
@@ -292,6 +296,7 @@ export default function CheckoutPage() {
             p_payment_method: orderData.payment_method,
             p_payment_status: orderData.payment_status,
             p_status: orderData.status,
+            p_pickup_time: orderData.pickup_time,
           });
 
         if (rpcError) {
@@ -639,6 +644,21 @@ export default function CheckoutPage() {
                 )}
               </div>
             </div>
+
+            {/* Pickup Time */}
+            <div className="mt-6 overflow-hidden rounded-lg border border-[hsl(35,20%,90%)] bg-white shadow-sm">
+              <div className="p-6">
+                <h2 className="mb-6 text-2xl font-bold text-[hsl(25,35%,25%)]">
+                  Pickup Time (Optional)
+                </h2>
+                <PickupTimePicker
+                  value={pickupTime}
+                  onChange={setPickupTime}
+                  minAdvanceMinutes={15}
+                  disabled={isSubmitting}
+                />
+              </div>
+            </div>
           </section>
 
           {/* Order Summary */}
@@ -728,6 +748,24 @@ export default function CheckoutPage() {
                     </span>
                   </div>
                 </div>
+
+                {/* Pickup Time Display */}
+                {pickupTime && (
+                  <div className="border-t border-[hsl(35,20%,90%)] pt-4">
+                    <h3 className="text-sm font-medium text-[hsl(25,35%,45%)]">
+                      Pickup Time
+                    </h3>
+                    <p className="mt-1 text-base font-semibold text-[hsl(25,35%,25%)]">
+                      {pickupTime.toLocaleString("en-GB", {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  </div>
+                )}
 
                 {/* Submit button */}
                 <button
