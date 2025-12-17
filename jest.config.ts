@@ -16,7 +16,7 @@ const config: Config = {
 
   // Module name mapper for path aliases
   moduleNameMapper: {
-    "^@/(.*)$": "<rootDir>/src/$1",
+    "^@/(.*)$": "<rootDir>/$1",
   },
 
   // Test match patterns
