@@ -8,25 +8,62 @@
  * - CSA-43: Delete account
  *
  * SECURITY:
- * - Requires valid session
- * - Permanently deletes user from Supabase Auth
+ * - Requires valid session with explicit cookie handling for API routes
+ * - Permanently deletes user from Supabase Auth using Admin API
+ * - Requires SUPABASE_SERVICE_ROLE_KEY environment variable
  * - This operation cannot be undone
  * - Cascade deletes handled by database RLS policies
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/src/lib/auth";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { cookies } from "next/headers";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 
 export async function DELETE(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
+    const cookieStore = await cookies();
 
-    if (!user) {
+    // Create Supabase client with proper cookie handling for API routes
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value;
+          },
+          set(name: string, value: string, options: CookieOptions) {
+            cookieStore.set(name, value, options);
+          },
+          remove(name: string, options: CookieOptions) {
+            cookieStore.set(name, "", options);
+          },
+        },
+      }
+    );
+
+    // Get authenticated user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
+    // Ensure service role key is configured
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error("SUPABASE_SERVICE_ROLE_KEY is not configured");
+      return NextResponse.json(
+        { error: "Service role key not configured" },
+        { status: 500 }
+      );
+    }
+
     // Need to use admin client to delete user
+    // Only the Admin API can delete users from Supabase Auth
     const supabaseAdmin = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
