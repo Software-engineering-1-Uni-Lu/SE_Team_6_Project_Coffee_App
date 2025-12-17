@@ -82,7 +82,7 @@ export function Navbar({ onCartOpen }: NavbarProps) {
                   </button>
                   <div className="invisible absolute left-0 mt-2 w-48 rounded-md bg-white opacity-0 shadow-lg transition-all group-hover:visible group-hover:opacity-100">
                     <Link
-                      href="/admin"
+                      href="/manager/dashboard"
                       className="block px-4 py-2 text-sm text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,95%)]"
                     >
                       Dashboard
