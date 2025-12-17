@@ -83,7 +83,7 @@ Implement comprehensive unit tests for all shared utility functions and custom R
 
 - `jest.config.ts` - Fixed moduleNameMapper to match TypeScript paths configuration
 
-### Test Infrastructure from Story 1
+### Test Infrastructure
 
 - `src/lib/__tests__/utils.test.ts` (4 tests) - cn utility tests (already existed)
 - `jest.setup.js` - Global test setup with Next.js router mocks
