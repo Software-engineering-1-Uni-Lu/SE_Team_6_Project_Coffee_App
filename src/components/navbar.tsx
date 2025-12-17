@@ -54,6 +54,16 @@ export function Navbar({ onCartOpen }: NavbarProps) {
                 </Link>
               )}
 
+              {/* Orders link for guests */}
+              {!user && (
+                <Link
+                  href="/orders"
+                  className="text-sm font-medium text-[hsl(25,35%,25%)] transition-colors hover:text-[hsl(25,40%,15%)]"
+                >
+                  Orders
+                </Link>
+              )}
+
               {/* My Orders link - only show to customers */}
               {user && role === "customer" && (
                 <Link
