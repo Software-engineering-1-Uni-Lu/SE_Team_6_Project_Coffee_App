@@ -98,17 +98,18 @@ describe("CartModal Component", () => {
     it("displays Browse Menu button when cart is empty", () => {
       render(<CartModal isOpen={true} onClose={jest.fn()} />);
 
-      const browseButton = screen.getByRole("button", {
+      const browseButton = screen.getByRole("link", {
         name: /browse menu/i,
       });
       expect(browseButton).toBeInTheDocument();
+      expect(browseButton).toHaveAttribute("href", "/menu");
     });
 
     it("closes modal when Browse Menu button is clicked", () => {
       const mockOnClose = jest.fn();
       render(<CartModal isOpen={true} onClose={mockOnClose} />);
 
-      const browseButton = screen.getByRole("button", {
+      const browseButton = screen.getByRole("link", {
         name: /browse menu/i,
       });
       fireEvent.click(browseButton);
