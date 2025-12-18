@@ -471,15 +471,16 @@ export async function middleware(request: NextRequest) {
    * ADMIN ROUTES (/admin, /admin/*)
    *
    * BEHAVIOR (UPDATED):
-   * - All /admin routes redirect to /manager/dashboard
-   * - This ensures both admins and managers use the same dashboard
+   * - Manager and Admin: Allow access to /admin/* routes (staff management, etc.)
+   * - Only redirect /admin root to /manager/dashboard for consistency
    * - Staff: Redirect to /staff
    * - Customer: Redirect to /menu
    * - Unauthenticated: Redirect to /auth/login
    *
    * ARCHITECTURE NOTE:
-   * The /admin route now redirects to /manager/dashboard for consistency.
-   * Both admins and managers use the same dashboard at /manager/dashboard.
+   * The /admin root redirects to /manager/dashboard for consistency,
+   * but /admin/* sub-routes (like /admin/staff) are accessible to both
+   * admins and managers for management features.
    */
   if (pathname === "/admin" || pathname.startsWith("/admin/")) {
     if (!user) {
@@ -502,10 +503,16 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    // Manager and admin: redirect to /manager/dashboard
-    const url = request.nextUrl.clone();
-    url.pathname = "/manager/dashboard";
-    return NextResponse.redirect(url);
+    // Manager and admin: Only redirect /admin root to /manager/dashboard
+    // Allow access to /admin/* sub-routes like /admin/staff
+    if (pathname === "/admin") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/manager/dashboard";
+      return NextResponse.redirect(url);
+    }
+
+    // Allow access to /admin/* routes for managers and admins
+    return response;
   }
 
   /**
