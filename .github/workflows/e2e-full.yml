@@ -1,0 +1,69 @@
+# name: E2E Tests (Full Browser Matrix)
+
+# permissions:
+#   contents: read
+#   checks: write
+#   pull-requests: read
+
+# on:
+#   # Run on pull requests
+#   pull_request:
+#     branches:
+#       - main
+#       - dev
+
+#   # Run on push to main branches
+#   push:
+#     branches:
+#       - main
+#       - dev
+
+#   # Allow manual trigger
+#   workflow_dispatch:
+
+# jobs:
+#   e2e-full:
+#     runs-on: ubuntu-latest
+#     timeout-minutes: 30
+
+#     strategy:
+#       fail-fast: false
+#       matrix:
+#         project: [chromium, firefox, webkit, "Mobile Chrome", "Mobile Safari"]
+
+#     steps:
+#       - uses: actions/checkout@v4
+
+#       - name: Setup Node
+#         uses: actions/setup-node@v4
+#         with:
+#           node-version: 20
+#           cache: npm
+
+#       - name: Install dependencies
+#         run: npm ci
+
+#       - name: Install Playwright Browsers
+#         run: npx playwright install --with-deps ${{ matrix.project == 'Mobile Chrome' && 'chromium' || matrix.project == 'Mobile Safari' && 'webkit' || matrix.project }}
+
+#       - name: Run E2E Tests - ${{ matrix.project }}
+#         run: npm run test:e2e -- --project="${{ matrix.project }}"
+#         env:
+#           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+#           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+#       - name: Upload Test Results - ${{ matrix.project }}
+#         uses: actions/upload-artifact@v4
+#         if: failure()
+#         with:
+#           name: playwright-report-${{ matrix.project }}
+#           path: playwright-report/
+#           retention-days: 7
+
+#       - name: Upload Screenshots - ${{ matrix.project }}
+#         uses: actions/upload-artifact@v4
+#         if: failure()
+#         with:
+#           name: playwright-screenshots-${{ matrix.project }}
+#           path: test-results/
+#           retention-days: 7
