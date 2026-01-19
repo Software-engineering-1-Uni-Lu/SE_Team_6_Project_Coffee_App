@@ -23,6 +23,7 @@ test-results/
 *.pem
 .docs/
 CLAUDE.md
+bmad/
 
 # debug
 npm-debug.log*
