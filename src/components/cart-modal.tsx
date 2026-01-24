@@ -51,12 +51,13 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
                 <p className="mb-6 text-sm text-[hsl(25,35%,45%)]">
                   Add some delicious items from our menu
                 </p>
-                <button
+                <Link
+                  href="/menu"
                   onClick={onClose}
                   className="rounded-md bg-[hsl(25,35%,25%)] px-6 py-2 text-sm font-medium text-white transition-colors hover:bg-[hsl(25,40%,15%)]"
                 >
                   Browse Menu
-                </button>
+                </Link>
               </div>
             ) : (
               <div className="space-y-4">
