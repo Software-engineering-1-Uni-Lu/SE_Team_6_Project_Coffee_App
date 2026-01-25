@@ -1,6 +1,6 @@
 -- Enable loyalty points as a payment method for authenticated customers.
--- Points required are computed per item from its price and rounded up to whole euros
--- so points are never worth more than their cash value.
+-- Points required are computed per item from its price and rounded up to whole euros.
+-- Redeem value uses 5x the earn ratio to protect margins.
 
 ALTER TYPE payment_method ADD VALUE IF NOT EXISTS 'loyalty_points';
 
@@ -25,6 +25,7 @@ DECLARE
   v_order_id UUID;
   v_order JSONB;
   pts_per_euro INTEGER;
+  redeem_multiplier INTEGER := 5;
   points_required INTEGER;
   rows_updated INTEGER;
 BEGIN
@@ -44,7 +45,8 @@ BEGIN
 
   -- Points cost is computed per item and rounded up to whole euros.
   SELECT COALESCE(SUM(
-    CEIL(GREATEST(0, COALESCE((item->>'price')::numeric, 0)) / 100) * pts_per_euro
+    CEIL(GREATEST(0, COALESCE((item->>'price')::numeric, 0)) / 100)
+    * (pts_per_euro * redeem_multiplier)
     * GREATEST(0, COALESCE((item->>'quantity')::int, 0))
   ), 0)
   INTO points_required

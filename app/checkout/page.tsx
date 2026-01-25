@@ -85,6 +85,7 @@ export default function CheckoutPage() {
   >("card");
   const [pickupTime, setPickupTime] = useState<Date | null>(null);
   const [pointsPerEuro, setPointsPerEuro] = useState<number>(10);
+  const redeemMultiplier = 5;
   const [loyaltyBalance, setLoyaltyBalance] = useState<number>(0);
   const [loyaltyLoading, setLoyaltyLoading] = useState<boolean>(false);
   const [loyaltyError, setLoyaltyError] = useState<string>("");
@@ -94,7 +95,10 @@ export default function CheckoutPage() {
   const netPrice = Math.round(total / (1 + TAX_RATE)); // Price without VAT
   const tax = total - netPrice; // VAT amount included in the price
   const estimatedPoints = Math.max(0, Math.floor(total / 100) * pointsPerEuro);
-  const pointsRequired = calculatePointsForCartItems(items, pointsPerEuro);
+  const pointsRequired = calculatePointsForCartItems(
+    items,
+    pointsPerEuro * redeemMultiplier
+  );
 
   const isGuest = !user;
   const canUsePoints = !isGuest && role === "customer";

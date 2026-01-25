@@ -8,7 +8,7 @@
 
 ## Objective
 
-Enable customers to pay for orders using loyalty points, with item-based points cost and clear checkout/profile UX.
+Enable customers to pay for orders using loyalty points, with item-based points cost, higher redeem ratio, and clear checkout/profile UX.
 
 ---
 
@@ -17,7 +17,7 @@ Enable customers to pay for orders using loyalty points, with item-based points 
 ### 1. Loyalty points payment data flow
 
 - Added `loyalty_points` as a payment method and a dedicated RPC to create points-paid orders atomically.
-- Computed points required per item using the current points ratio and rounded up to whole euros.
+- Computed points required per item using a 5x redeem ratio and rounded up to whole euros.
 - Skipped points earning on points-paid orders while preserving cancellation refunds.
 - Card payments now credit points immediately after the paid order is created.
 

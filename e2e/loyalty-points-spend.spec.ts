@@ -116,6 +116,7 @@ test.describe("Customer Loyalty Points Spend", () => {
       .select("points_per_euro")
       .single();
     const pointsPerEuro = settings?.points_per_euro || 10;
+    const pointsPerEuroRedeem = pointsPerEuro * 5;
 
     // Add an item and checkout with loyalty points
     await page.goto("/menu");
@@ -153,7 +154,10 @@ test.describe("Customer Loyalty Points Spend", () => {
       quantity: number;
     }>;
 
-    const pointsRequired = calculatePointsRequired(orderItems, pointsPerEuro);
+    const pointsRequired = calculatePointsRequired(
+      orderItems,
+      pointsPerEuroRedeem
+    );
     const expectedBalance = seededPoints - pointsRequired;
 
     await page.waitForURL(/\/order-confirmation\//, { timeout: 15000 });
