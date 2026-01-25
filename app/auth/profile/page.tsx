@@ -49,13 +49,21 @@
  * 5. Delete: Confirms, calls delete API, redirects to home
  */
 
-import { useState, FormEvent } from "react";
+import { useEffect, useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/src/hooks/useUser";
 
 export default function ProfilePage() {
   const router = useRouter();
   const { user, role, isBlocked, loading } = useUser();
+
+  interface LoyaltyHistoryEntry {
+    id: string;
+    order_id: string | null;
+    points_delta: number;
+    reason: string;
+    created_at: string;
+  }
 
   /**
    * Form state for editing profile
@@ -70,6 +78,12 @@ export default function ProfilePage() {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [loyaltyBalance, setLoyaltyBalance] = useState(0);
+  const [loyaltyHistory, setLoyaltyHistory] = useState<LoyaltyHistoryEntry[]>(
+    []
+  );
+  const [loyaltyLoading, setLoyaltyLoading] = useState(false);
+  const [loyaltyError, setLoyaltyError] = useState("");
 
   /**
    * Initialize full name from user data when it loads
@@ -79,6 +93,55 @@ export default function ProfilePage() {
       setFullName(user.user_metadata.full_name);
     }
   });
+
+  useEffect(() => {
+    if (loading || !user || role !== "customer") {
+      return;
+    }
+
+    let isActive = true;
+    setLoyaltyLoading(true);
+    setLoyaltyError("");
+
+    const fetchLoyaltySummary = async () => {
+      try {
+        const response = await fetch("/api/loyalty/summary", {
+          credentials: "include",
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to load loyalty points");
+        }
+
+        if (!isActive) return;
+        setLoyaltyBalance(Number(data.balance || 0));
+        setLoyaltyHistory(Array.isArray(data.history) ? data.history : []);
+      } catch (err) {
+        if (!isActive) return;
+        setLoyaltyError(
+          err instanceof Error ? err.message : "Failed to load loyalty points"
+        );
+      } finally {
+        if (isActive) {
+          setLoyaltyLoading(false);
+        }
+      }
+    };
+
+    fetchLoyaltySummary();
+
+    return () => {
+      isActive = false;
+    };
+  }, [loading, role, user]);
+
+  const formatLoyaltyDate = (date: string) =>
+    new Date(date).toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
 
   /**
    * Handle profile update
@@ -321,6 +384,75 @@ export default function ProfilePage() {
               </div>
             </dl>
           </div>
+
+          {role === "customer" && (
+            <div className="rounded-lg border border-border bg-card p-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-card-foreground">
+                  Loyalty Points
+                </h2>
+                <span className="text-sm text-muted-foreground">
+                  Points balance
+                </span>
+              </div>
+
+              {loyaltyLoading ? (
+                <p className="mt-4 text-sm text-muted-foreground">Loading...</p>
+              ) : loyaltyError ? (
+                <p className="mt-4 text-sm text-error">{loyaltyError}</p>
+              ) : (
+                <>
+                  <div className="mt-4 flex items-end gap-2">
+                    <span
+                      className="text-3xl font-semibold text-foreground"
+                      data-testid="loyalty-balance"
+                    >
+                      {loyaltyBalance}
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      points
+                    </span>
+                  </div>
+
+                  <div className="mt-6">
+                    <h3 className="text-sm font-medium text-muted-foreground">
+                      Recent earnings
+                    </h3>
+                    {loyaltyHistory.length === 0 ? (
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        No points earned yet.
+                      </p>
+                    ) : (
+                      <ul
+                        className="mt-3 divide-y divide-border"
+                        data-testid="loyalty-history"
+                      >
+                        {loyaltyHistory.map((entry) => (
+                          <li
+                            key={entry.id}
+                            className="flex items-center justify-between py-2"
+                            data-testid="loyalty-entry"
+                          >
+                            <div>
+                              <p className="text-sm text-foreground">
+                                {entry.reason}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {formatLoyaltyDate(entry.created_at)}
+                              </p>
+                            </div>
+                            <span className="text-sm font-medium text-success">
+                              +{entry.points_delta} pts
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           {/* Edit Profile Form */}
           <div className="rounded-lg border border-border bg-card p-6">
