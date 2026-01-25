@@ -15,10 +15,15 @@
  * - CSA-132: Browse staff accounts
  * - CSA-133: View & edit staff account details
  * - CSA-134: Add or remove staff accounts
+ * - CSA-207: Search & filter staff accounts (ENHANCED)
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@/src/hooks/useUser";
+import { useDebounce } from "@/src/hooks/useDebounce";
+import { applyAllFilters, type FilterState } from "@/src/lib/staff-filters";
+import FilterBadges from "./FilterBadges";
 
 // Types
 interface Staff {
@@ -29,6 +34,7 @@ interface Staff {
   role: "staff" | "manager" | "admin";
   blocked: boolean;
   created_at: string;
+  last_login_at?: string | null; // CSA-207: Added for last login filter
 }
 
 interface Invite {
@@ -72,11 +78,13 @@ export default function StaffManagementClient() {
   const modalRole: "manager" | "admin" =
     userRole === "admin" ? "admin" : "manager";
 
+  // URL params for filter persistence (CSA-207)
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   // State
   const [staff, setStaff] = useState<Staff[]>([]);
   const [invites, setInvites] = useState<Invite[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [roleFilter, setRoleFilter] = useState<string>("all");
   const [showInviteGenerator, setShowInviteGenerator] = useState(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [blockingStaff, setBlockingStaff] = useState<Staff | null>(null);
@@ -87,6 +95,50 @@ export default function StaffManagementClient() {
     type: "success" | "error";
     text: string;
   } | null>(null);
+
+  // CSA-207: Enhanced filter state (initialize from URL params)
+  const [searchQuery, setSearchQuery] = useState(
+    searchParams?.get("search") || ""
+  );
+  const [selectedRoles, setSelectedRoles] = useState<string[]>(() => {
+    const rolesParam = searchParams?.get("roles");
+    return rolesParam ? rolesParam.split(",") : [];
+  });
+  const [joinDateFilter, setJoinDateFilter] = useState<string | null>(
+    searchParams?.get("joinDate") || null
+  );
+  const [lastLoginFilter, setLastLoginFilter] = useState<string | null>(
+    searchParams?.get("lastLogin") || null
+  );
+
+  // CSA-207: Debounced search (300ms delay)
+  const debouncedSearch = useDebounce(searchQuery, 300);
+
+  // CSA-207: Sync filter state to URL
+  useEffect(() => {
+    const params = new URLSearchParams();
+
+    if (debouncedSearch.trim()) {
+      params.set("search", debouncedSearch);
+    }
+    if (selectedRoles.length > 0) {
+      params.set("roles", selectedRoles.join(","));
+    }
+    if (joinDateFilter) {
+      params.set("joinDate", joinDateFilter);
+    }
+    if (lastLoginFilter) {
+      params.set("lastLogin", lastLoginFilter);
+    }
+
+    const queryString = params.toString();
+    const newUrl = queryString ? `?${queryString}` : window.location.pathname;
+
+    // Update URL without triggering navigation
+    if (window.location.search !== `?${queryString}`) {
+      router.replace(newUrl, { scroll: false });
+    }
+  }, [debouncedSearch, selectedRoles, joinDateFilter, lastLoginFilter, router]);
 
   // Fetch initial data on mount
   useEffect(() => {
@@ -119,21 +171,41 @@ export default function StaffManagementClient() {
     fetchData();
   }, [userLoading]);
 
-  // Filter staff based on search and role
-  const filteredStaff = staff.filter((member) => {
-    const matchesSearch =
-      member.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      member.email?.toLowerCase().includes(searchQuery.toLowerCase());
+  // CSA-207: Apply all filters using optimized filtering logic
+  const filteredStaff = useMemo(() => {
+    const filters: FilterState = {
+      searchQuery: debouncedSearch,
+      roles: selectedRoles,
+      joinDateRange: joinDateFilter,
+      lastLoginRange: lastLoginFilter,
+    };
 
-    const matchesRole = roleFilter === "all" || member.role === roleFilter;
-
-    return matchesSearch && matchesRole;
-  });
+    return applyAllFilters(staff, filters);
+  }, [staff, debouncedSearch, selectedRoles, joinDateFilter, lastLoginFilter]);
 
   // Show message
   const showMessage = (type: "success" | "error", text: string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 5000);
+  };
+
+  // CSA-207: Filter clear handlers
+  const handleClearSearch = () => setSearchQuery("");
+  const handleRemoveRole = (role: string) => {
+    setSelectedRoles((prev) => prev.filter((r) => r !== role));
+  };
+  const handleToggleRole = (role: string) => {
+    setSelectedRoles((prev) =>
+      prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]
+    );
+  };
+  const handleClearJoinDate = () => setJoinDateFilter(null);
+  const handleClearLastLogin = () => setLastLoginFilter(null);
+  const handleClearAllFilters = () => {
+    setSearchQuery("");
+    setSelectedRoles([]);
+    setJoinDateFilter(null);
+    setLastLoginFilter(null);
   };
 
   // Refresh staff list
@@ -351,27 +423,133 @@ export default function StaffManagementClient() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
-        {/* Filters and Search */}
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex-1">
-            <input
-              type="text"
-              placeholder="Search by name or email..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full max-w-md rounded-md border border-border bg-background px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            />
+        {/* CSA-207: Enhanced Filters and Search */}
+        <div className="mb-6 space-y-4">
+          {/* Search and Filter Controls */}
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            {/* Search Bar */}
+            <div className="max-w-md flex-1">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search by name or email..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full rounded-md border border-border bg-background px-4 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  aria-label="Search staff by name or email"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={handleClearSearch}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    aria-label="Clear search"
+                  >
+                    <svg
+                      className="h-4 w-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Filter Controls */}
+            <div className="flex flex-wrap gap-3">
+              {/* Role Filter (Multi-select) */}
+              <div className="relative">
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                  Role
+                </label>
+                <div className="flex gap-2">
+                  {(
+                    [
+                      "staff",
+                      ...(userRole === "admin" ? ["manager", "admin"] : []),
+                    ] as string[]
+                  ).map((role) => {
+                    const isSelected = selectedRoles.includes(role);
+                    return (
+                      <button
+                        key={role}
+                        onClick={() => handleToggleRole(role)}
+                        className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
+                          isSelected
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border bg-background text-foreground hover:border-primary"
+                        }`}
+                        role="button"
+                        aria-label={`${isSelected ? "Remove" : "Add"} ${role} role filter`}
+                      >
+                        {role.charAt(0).toUpperCase() + role.slice(1)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Join Date Filter */}
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                  Joined
+                </label>
+                <select
+                  value={joinDateFilter || ""}
+                  onChange={(e) => setJoinDateFilter(e.target.value || null)}
+                  className="rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  aria-label="Filter by join date"
+                >
+                  <option value="">All time</option>
+                  <option value="last_7_days">Last 7 days</option>
+                  <option value="last_30_days">Last 30 days</option>
+                  <option value="last_90_days">Last 90 days</option>
+                </select>
+              </div>
+
+              {/* Last Login Filter */}
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                  Last Login
+                </label>
+                <select
+                  value={lastLoginFilter || ""}
+                  onChange={(e) => setLastLoginFilter(e.target.value || null)}
+                  className="rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  aria-label="Filter by last login"
+                >
+                  <option value="">All</option>
+                  <option value="last_7_days">Last 7 days</option>
+                  <option value="last_30_days">Last 30 days</option>
+                  <option value="last_90_days">Last 90 days</option>
+                  <option value="90_plus_days">90+ days ago</option>
+                  <option value="never">Never</option>
+                </select>
+              </div>
+            </div>
           </div>
-          <select
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            className="rounded-md border border-border bg-background px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option value="all">All Roles</option>
-            <option value="staff">Staff</option>
-            {userRole === "admin" && <option value="manager">Manager</option>}
-            {userRole === "admin" && <option value="admin">Admin</option>}
-          </select>
+
+          {/* CSA-207: Filter Badges */}
+          <FilterBadges
+            searchQuery={debouncedSearch}
+            roles={selectedRoles}
+            joinDateRange={joinDateFilter}
+            lastLoginRange={lastLoginFilter}
+            onClearSearch={handleClearSearch}
+            onRemoveRole={handleRemoveRole}
+            onClearJoinDate={handleClearJoinDate}
+            onClearLastLogin={handleClearLastLogin}
+            onClearAll={handleClearAllFilters}
+            resultCount={filteredStaff.length}
+            totalCount={staff.length}
+          />
         </div>
 
         {/* Staff Table */}
@@ -399,11 +577,28 @@ export default function StaffManagementClient() {
             <tbody className="divide-y divide-border">
               {filteredStaff.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan={5}
-                    className="px-4 py-8 text-center text-sm text-muted-foreground"
-                  >
-                    No staff members found
+                  <td colSpan={5} className="px-4 py-12 text-center">
+                    <div className="text-sm text-muted-foreground">
+                      <p className="mb-2 font-medium text-foreground">
+                        No staff members found
+                      </p>
+                      <p>
+                        {staff.length === 0
+                          ? "No staff accounts exist yet."
+                          : "Try adjusting your filters or search query."}
+                      </p>
+                      {(debouncedSearch ||
+                        selectedRoles.length > 0 ||
+                        joinDateFilter ||
+                        lastLoginFilter) && (
+                        <button
+                          onClick={handleClearAllFilters}
+                          className="mt-3 text-primary hover:text-primary/80 hover:underline"
+                        >
+                          Clear all filters
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -621,10 +816,14 @@ function EditStaffModal({
         </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label
+              htmlFor="edit-email"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
               Email
             </label>
             <input
+              id="edit-email"
               type="email"
               value={formData.email}
               onChange={(e) =>
@@ -635,10 +834,14 @@ function EditStaffModal({
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label
+              htmlFor="edit-full-name"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
               Full Name
             </label>
             <input
+              id="edit-full-name"
               type="text"
               value={formData.full_name}
               onChange={(e) =>
@@ -648,10 +851,14 @@ function EditStaffModal({
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label
+              htmlFor="edit-phone"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
               Phone
             </label>
             <input
+              id="edit-phone"
               type="tel"
               value={formData.phone}
               onChange={(e) =>
@@ -662,10 +869,14 @@ function EditStaffModal({
           </div>
           {userRole === "admin" && staff.role !== "admin" && (
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="edit-role"
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
                 Role
               </label>
               <select
+                id="edit-role"
                 value={formData.role}
                 onChange={(e) =>
                   setFormData({
@@ -795,10 +1006,14 @@ function InviteGeneratorModal({
         </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label
+              htmlFor="invite-role"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
               Role
             </label>
             <select
+              id="invite-role"
               value={formData.role}
               onChange={(e) =>
                 setFormData({ ...formData, role: e.target.value })
@@ -810,10 +1025,14 @@ function InviteGeneratorModal({
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label
+              htmlFor="invite-prefix"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
               Prefix (optional)
             </label>
             <input
+              id="invite-prefix"
               type="text"
               value={formData.prefix}
               onChange={(e) =>
@@ -824,10 +1043,14 @@ function InviteGeneratorModal({
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label
+              htmlFor="invite-expires"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
               Expires in (days)
             </label>
             <input
+              id="invite-expires"
               type="number"
               value={formData.expiresInDays}
               onChange={(e) =>
@@ -842,10 +1065,14 @@ function InviteGeneratorModal({
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label
+              htmlFor="invite-notes"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
               Notes (optional)
             </label>
             <textarea
+              id="invite-notes"
               value={formData.notes}
               onChange={(e) =>
                 setFormData({ ...formData, notes: e.target.value })
