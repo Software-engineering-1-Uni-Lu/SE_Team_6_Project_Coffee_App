@@ -556,7 +556,11 @@ export default function OrderConfirmationPage() {
                   Payment Method:
                 </span>
                 <p className="text-[hsl(25,35%,25%)]">
-                  {order.payment_method === "card" ? "Card" : "Cash"}
+                  {order.payment_method === "card"
+                    ? "Card"
+                    : order.payment_method === "cash"
+                      ? "Cash"
+                      : "Loyalty Points"}
                 </p>
               </div>
               {order.points_earned > 0 && (

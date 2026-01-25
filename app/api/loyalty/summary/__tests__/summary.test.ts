@@ -77,7 +77,7 @@ describe("GET /api/loyalty/summary", () => {
     expect(data.error).toBe("Only customers can view loyalty points");
   });
 
-  it("returns balance and earned history for customer", async () => {
+  it("returns balance and history for customer", async () => {
     const ledgerRows = [
       {
         id: "entry-1",
@@ -147,8 +147,8 @@ describe("GET /api/loyalty/summary", () => {
 
     expect(response.status).toBe(200);
     expect(data.balance).toBe(30);
-    expect(data.history).toHaveLength(2);
-    expect(data.history[0].points_delta).toBeGreaterThan(0);
+    expect(data.history).toHaveLength(3);
+    expect(data.history[1].points_delta).toBeLessThan(0);
   });
 
   it("returns 500 when loyalty ledger query fails", async () => {

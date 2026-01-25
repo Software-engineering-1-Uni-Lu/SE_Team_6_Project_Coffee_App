@@ -1,5 +1,5 @@
 /**
- * E2E Test: Customer earns loyalty points after a completed, paid order.
+ * E2E Test: Customer earns loyalty points immediately after a paid card order.
  */
 
 import fs from "fs";
@@ -48,7 +48,9 @@ const serviceClient =
     : null;
 
 test.describe("Customer Loyalty Points", () => {
-  test("Customer earns points after completed paid order", async ({ page }) => {
+  test("Customer earns points immediately after card payment", async ({
+    page,
+  }) => {
     const timestamp = Date.now();
     const customerEmail = `loyalty-${timestamp}@test.com`;
     const customerPassword = "Test123!";
@@ -86,8 +88,7 @@ test.describe("Customer Loyalty Points", () => {
     const orderResponsePromise = page.waitForResponse(
       (response) =>
         response.url().includes("/api/orders") &&
-        response.request().method() === "POST" &&
-        response.status() === 201,
+        response.request().method() === "POST",
       { timeout: 15000 }
     );
 
@@ -96,44 +97,35 @@ test.describe("Customer Loyalty Points", () => {
       .click();
 
     const orderResponse = await orderResponsePromise;
-    const orderPayload = await orderResponse.json();
-    const totalCents = orderPayload.order.total_cents;
-    const expectedPoints = Math.floor(totalCents / 100) * 10;
-
-    await page.waitForURL(/\/order-confirmation/, { timeout: 15000 });
-    const orderId = page.url().split("/").pop() || "";
-
-    if (!serviceClient) {
+    if (orderResponse.status() !== 201) {
+      const errorBody = await orderResponse.text();
       throw new Error(
-        "Missing Supabase service role credentials for order completion."
+        `Order creation failed (${orderResponse.status()}): ${errorBody}`
       );
     }
+    const orderPayload = await orderResponse.json();
+    const totalCents = orderPayload.order.total_cents;
+    let pointsPerEuro = 10;
+    if (serviceClient) {
+      const { data: settings } = await serviceClient
+        .from("settings")
+        .select("points_per_euro")
+        .single();
+      if (settings?.points_per_euro) {
+        pointsPerEuro = settings.points_per_euro;
+      }
+    }
+    const expectedPoints = Math.floor(totalCents / 100) * pointsPerEuro;
 
-    const { error: markCompletedError } = await serviceClient
-      .from("orders")
-      .update({ status: "completed", payment_status: "unpaid" })
-      .eq("id", orderId);
-
-    expect(markCompletedError).toBeNull();
-
-    const { error: markPaidError } = await serviceClient
-      .from("orders")
-      .update({ payment_status: "paid" })
-      .eq("id", orderId);
-
-    expect(markPaidError).toBeNull();
-    await page.waitForTimeout(2000);
+    await page.waitForURL(/\/order-confirmation/, { timeout: 15000 });
+    await page.waitForTimeout(1500);
 
     // Verify loyalty points on profile
     await page.goto("/auth/profile");
-    await page.waitForSelector('[data-testid="loyalty-balance"]', {
+    const balanceLocator = page.locator('[data-testid="loyalty-balance"]');
+    await expect(balanceLocator).toHaveText(String(expectedPoints), {
       timeout: 15000,
     });
-
-    const balanceText = await page
-      .locator('[data-testid="loyalty-balance"]')
-      .innerText();
-    expect(Number(balanceText)).toBe(expectedPoints);
 
     await expect(
       page.locator('[data-testid="loyalty-entry"]').first()

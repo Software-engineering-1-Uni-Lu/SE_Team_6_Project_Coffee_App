@@ -416,36 +416,44 @@ export default function ProfilePage() {
 
                   <div className="mt-6">
                     <h3 className="text-sm font-medium text-muted-foreground">
-                      Recent earnings
+                      Recent activity
                     </h3>
                     {loyaltyHistory.length === 0 ? (
                       <p className="mt-2 text-sm text-muted-foreground">
-                        No points earned yet.
+                        No points activity yet.
                       </p>
                     ) : (
                       <ul
                         className="mt-3 divide-y divide-border"
                         data-testid="loyalty-history"
                       >
-                        {loyaltyHistory.map((entry) => (
-                          <li
-                            key={entry.id}
-                            className="flex items-center justify-between py-2"
-                            data-testid="loyalty-entry"
-                          >
-                            <div>
-                              <p className="text-sm text-foreground">
-                                {entry.reason}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {formatLoyaltyDate(entry.created_at)}
-                              </p>
-                            </div>
-                            <span className="text-sm font-medium text-success">
-                              +{entry.points_delta} pts
-                            </span>
-                          </li>
-                        ))}
+                        {loyaltyHistory.map((entry) => {
+                          const isEarned = entry.points_delta >= 0;
+                          return (
+                            <li
+                              key={entry.id}
+                              className="flex items-center justify-between py-2"
+                              data-testid="loyalty-entry"
+                            >
+                              <div>
+                                <p className="text-sm text-foreground">
+                                  {entry.reason}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {formatLoyaltyDate(entry.created_at)}
+                                </p>
+                              </div>
+                              <span
+                                className={`text-sm font-medium ${
+                                  isEarned ? "text-success" : "text-error"
+                                }`}
+                              >
+                                {isEarned ? "+" : ""}
+                                {entry.points_delta} pts
+                              </span>
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                   </div>

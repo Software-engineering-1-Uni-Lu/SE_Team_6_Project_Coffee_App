@@ -65,7 +65,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!payment_method || !["card", "cash"].includes(payment_method)) {
+    if (
+      !payment_method ||
+      !["card", "cash", "loyalty_points"].includes(payment_method)
+    ) {
       return NextResponse.json(
         { error: "Valid payment method is required" },
         { status: 400 }
@@ -140,6 +143,13 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+      if (payment_method === "loyalty_points") {
+        return NextResponse.json(
+          { error: "Loyalty points require an authenticated account" },
+          { status: 400 }
+        );
+      }
+
       // Validate email format
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(guest_email.trim())) {
@@ -163,7 +173,7 @@ export async function POST(request: NextRequest) {
       subtotal_cents: number;
       tax_cents: number;
       total_cents: number;
-      payment_method: "card" | "cash";
+      payment_method: "card" | "cash" | "loyalty_points";
       payment_status: string;
       pickup_time: string | null;
     } = {
@@ -177,7 +187,10 @@ export async function POST(request: NextRequest) {
       total_cents,
       payment_method,
       payment_status:
-        payment_status || (payment_method === "card" ? "paid" : "unpaid"),
+        payment_status ||
+        (payment_method === "card" || payment_method === "loyalty_points"
+          ? "paid"
+          : "unpaid"),
       pickup_time: pickup_time || null,
     };
 
@@ -189,17 +202,45 @@ export async function POST(request: NextRequest) {
     if (user) {
       // For authenticated customers: use authenticated client
       // RLS policy: auth.uid() = customer_id AND has_role(auth.uid(), 'customer')
-      const result = await supabase
-        .from("orders")
-        .insert(orderData)
-        .select()
-        .single();
+      if (payment_method === "loyalty_points") {
+        const result = await supabase.rpc("create_loyalty_points_order", {
+          p_items: orderData.items,
+          p_subtotal_cents: orderData.subtotal_cents,
+          p_tax_cents: orderData.tax_cents,
+          p_total_cents: orderData.total_cents,
+          p_pickup_time: orderData.pickup_time,
+          p_status: orderData.status,
+        });
 
-      order = result.data;
-      error = result.error;
+        order = result.data;
+        error = result.error;
+      } else {
+        const result = await supabase
+          .from("orders")
+          .insert(orderData)
+          .select()
+          .single();
+
+        order = result.data;
+        error = result.error;
+      }
 
       if (error) {
         console.error("Customer order error:", error);
+
+        if (error.message?.includes("Insufficient points")) {
+          return NextResponse.json(
+            { error: "Insufficient loyalty points for this order" },
+            { status: 400 }
+          );
+        }
+
+        if (error.message?.includes("Only customers")) {
+          return NextResponse.json(
+            { error: "Only customers can use loyalty points" },
+            { status: 403 }
+          );
+        }
 
         // Provide helpful error messages
         if (error.code === "42501") {

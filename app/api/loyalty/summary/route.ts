@@ -2,7 +2,7 @@
  * GET /api/loyalty/summary
  *
  * Purpose: Return the authenticated customer's loyalty points balance
- * and recent earned history.
+ * and recent history.
  */
 
 import { NextResponse } from "next/server";
@@ -78,9 +78,7 @@ export async function GET() {
       0
     );
 
-    const history = allEntries
-      .filter((entry) => entry.points_delta > 0)
-      .slice(0, HISTORY_LIMIT);
+    const history = allEntries.slice(0, HISTORY_LIMIT);
 
     return NextResponse.json({ balance, history }, { status: 200 });
   } catch (error) {

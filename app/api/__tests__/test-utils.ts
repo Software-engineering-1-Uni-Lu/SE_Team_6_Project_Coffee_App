@@ -72,6 +72,8 @@ export function createMockSupabaseClient(
     authError?: any;
     dbData?: any;
     dbError?: any;
+    rpcData?: any;
+    rpcError?: any;
   } = {}
 ) {
   const {
@@ -79,6 +81,8 @@ export function createMockSupabaseClient(
     authError = null,
     dbData = null,
     dbError = null,
+    rpcData = null,
+    rpcError = null,
   } = options;
 
   const mockClient = {
@@ -95,6 +99,10 @@ export function createMockSupabaseClient(
       signUp: jest.fn(),
       signOut: jest.fn(),
     },
+    rpc: jest.fn().mockResolvedValue({
+      data: rpcData,
+      error: rpcError,
+    }),
     from: jest.fn(() => ({
       select: jest.fn().mockReturnThis(),
       insert: jest.fn().mockReturnThis(),

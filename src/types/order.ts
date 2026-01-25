@@ -17,7 +17,7 @@ export type OrderStatus =
   | "completed"
   | "cancelled";
 
-export type PaymentMethod = "card" | "cash";
+export type PaymentMethod = "card" | "cash" | "loyalty_points";
 
 export type PaymentStatus = "paid" | "unpaid" | "refunded";
 
