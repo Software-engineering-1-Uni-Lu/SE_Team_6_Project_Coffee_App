@@ -475,7 +475,11 @@ function OrderDetailModal({
                 <div className="flex justify-between pt-2 text-xs">
                   <span className="text-[hsl(25,35%,55%)]">Payment Method</span>
                   <span className="capitalize text-[hsl(25,35%,25%)]">
-                    {order.payment_method}
+                    {order.payment_method === "card"
+                      ? "Card"
+                      : order.payment_method === "cash"
+                        ? "Cash"
+                        : "Loyalty Points"}
                   </span>
                 </div>
                 <div className="flex justify-between text-xs">

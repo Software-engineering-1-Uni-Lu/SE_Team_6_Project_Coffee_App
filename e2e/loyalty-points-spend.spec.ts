@@ -1,5 +1,5 @@
 /**
- * E2E Test: Customer earns loyalty points immediately after a paid card order.
+ * E2E Test: Customer can pay with loyalty points.
  */
 
 import fs from "fs";
@@ -47,13 +47,21 @@ const serviceClient =
       })
     : null;
 
-test.describe("Customer Loyalty Points", () => {
-  test("Customer earns points immediately after card payment", async ({
-    page,
-  }) => {
+const calculatePointsRequired = (
+  items: Array<{ price: number; quantity: number }>,
+  pointsPerEuro: number
+) =>
+  items.reduce((sum, item) => {
+    const eurosRoundedUp = Math.ceil(item.price / 100);
+    return sum + eurosRoundedUp * pointsPerEuro * item.quantity;
+  }, 0);
+
+test.describe("Customer Loyalty Points Spend", () => {
+  test("Customer can pay with loyalty points", async ({ page }) => {
     const timestamp = Date.now();
-    const customerEmail = `loyalty-${timestamp}@test.com`;
+    const customerEmail = `loyalty-spend-${timestamp}@test.com`;
     const customerPassword = "Test123!";
+    const seededPoints = 500;
 
     await page.goto("/");
     await clearCart(page);
@@ -68,7 +76,48 @@ test.describe("Customer Loyalty Points", () => {
       timeout: 15000,
     });
 
-    // Add an item and checkout with card payment
+    if (!serviceClient) {
+      throw new Error(
+        "Missing Supabase service role credentials for loyalty points spend."
+      );
+    }
+
+    const { data: profile, error: profileError } = await serviceClient
+      .from("profiles")
+      .select("id")
+      .eq("email", customerEmail)
+      .single();
+
+    expect(profileError).toBeNull();
+    expect(profile?.id).toBeTruthy();
+
+    const customerId = profile?.id as string;
+
+    const { error: ledgerError } = await serviceClient
+      .from("loyalty_ledger")
+      .insert({
+        customer_id: customerId,
+        order_id: null,
+        points_delta: seededPoints,
+        reason: "Seed points for spend test",
+      });
+
+    expect(ledgerError).toBeNull();
+
+    const { error: profileUpdateError } = await serviceClient
+      .from("profiles")
+      .update({ loyalty_points: seededPoints })
+      .eq("id", customerId);
+
+    expect(profileUpdateError).toBeNull();
+
+    const { data: settings } = await serviceClient
+      .from("settings")
+      .select("points_per_euro")
+      .single();
+    const pointsPerEuro = settings?.points_per_euro || 10;
+
+    // Add an item and checkout with loyalty points
     await page.goto("/menu");
     await page.waitForSelector('button:has-text("Add to Cart")', {
       timeout: 10000,
@@ -77,18 +126,19 @@ test.describe("Customer Loyalty Points", () => {
     await page.waitForTimeout(500);
 
     await page.goto("/checkout");
-    await page.waitForSelector('input[name="cardNumber"]', {
+    await page.waitForSelector('[data-testid="loyalty-points-required"]', {
       timeout: 10000,
     });
-    await page.fill('input[name="cardNumber"]', "4242 4242 4242 4242");
-    await page.fill('input[name="cardName"]', "Loyalty Tester");
-    await page.fill('input[name="expiry"]', "12/30");
-    await page.fill('input[name="cvc"]', "123");
+
+    await page
+      .locator('button:has-text("Loyalty Points")')
+      .click({ timeout: 10000 });
 
     const orderResponsePromise = page.waitForResponse(
       (response) =>
         response.url().includes("/api/orders") &&
-        response.request().method() === "POST",
+        response.request().method() === "POST" &&
+        response.status() === 201,
       { timeout: 15000 }
     );
 
@@ -97,45 +147,41 @@ test.describe("Customer Loyalty Points", () => {
       .click();
 
     const orderResponse = await orderResponsePromise;
-    if (orderResponse.status() !== 201) {
-      const errorBody = await orderResponse.text();
-      throw new Error(
-        `Order creation failed (${orderResponse.status()}): ${errorBody}`
-      );
-    }
     const orderPayload = await orderResponse.json();
-    const totalCents = orderPayload.order.total_cents;
-    let pointsPerEuro = 10;
-    if (serviceClient) {
-      const { data: settings } = await serviceClient
-        .from("settings")
-        .select("points_per_euro")
-        .single();
-      if (settings?.points_per_euro) {
-        pointsPerEuro = settings.points_per_euro;
-      }
-    }
-    const expectedPoints = Math.floor(totalCents / 100) * pointsPerEuro;
+    const orderItems = orderPayload.order.items as Array<{
+      price: number;
+      quantity: number;
+    }>;
 
-    await page.waitForURL(/\/order-confirmation/, { timeout: 15000 });
-    await page.waitForTimeout(1500);
+    const pointsRequired = calculatePointsRequired(orderItems, pointsPerEuro);
+    const expectedBalance = seededPoints - pointsRequired;
+
+    await page.waitForURL(/\/order-confirmation\//, { timeout: 15000 });
+
+    await expect(page.locator("text=Points Redeemed")).toBeVisible({
+      timeout: 10000,
+    });
 
     // Verify loyalty points on profile
     await page.goto("/auth/profile");
-    const balanceLocator = page.locator('[data-testid="loyalty-balance"]');
-    await expect(balanceLocator).toHaveText(String(expectedPoints), {
+    await page.waitForSelector('[data-testid="loyalty-balance"]', {
       timeout: 15000,
     });
 
+    const balanceText = await page
+      .locator('[data-testid="loyalty-balance"]')
+      .innerText();
+    expect(Number(balanceText)).toBe(expectedBalance);
+
     await expect(
       page.locator('[data-testid="loyalty-entry"]').first()
-    ).toContainText(`+${expectedPoints} pts`);
+    ).toContainText(`-${pointsRequired} pts`);
 
     // Idempotency check: reload and ensure balance is unchanged
     await page.reload();
     const balanceAfterReload = await page
       .locator('[data-testid="loyalty-balance"]')
       .innerText();
-    expect(Number(balanceAfterReload)).toBe(expectedPoints);
+    expect(Number(balanceAfterReload)).toBe(expectedBalance);
   });
 });

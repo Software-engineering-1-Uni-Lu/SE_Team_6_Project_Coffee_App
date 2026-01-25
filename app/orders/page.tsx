@@ -203,8 +203,13 @@ function DetailModal({
               {itemCount} {itemCount === 1 ? "item" : "items"}
             </div>
             <div className="text-sm text-[hsl(25,25%,45%)]">
-              Payment: {order.payment_method === "card" ? "Card" : "Cash"} (
-              {order.payment_status})
+              Payment:{" "}
+              {order.payment_method === "card"
+                ? "Card"
+                : order.payment_method === "cash"
+                  ? "Cash"
+                  : "Loyalty Points"}{" "}
+              ({order.payment_status})
             </div>
             {order.pickup_time && (
               <div className="text-sm text-[hsl(25,25%,45%)]">
