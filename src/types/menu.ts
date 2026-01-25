@@ -15,6 +15,7 @@ export interface MenuItem {
   vegetarian: boolean;
   vegan: boolean;
   active: boolean;
+  sold_out?: boolean;
   modifiers: Modifier[];
   availability_start: string | null;
   availability_end: string | null;
