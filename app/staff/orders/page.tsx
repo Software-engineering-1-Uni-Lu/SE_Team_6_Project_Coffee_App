@@ -607,25 +607,26 @@ function StatusFilter({
   return (
     <div
       className="flex flex-wrap gap-2"
-      role="tablist"
+      role="group"
       aria-label="Filter orders by status"
     >
-      {filters.map((filter) => (
-        <button
-          key={filter.value}
-          onClick={() => onFilterChange(filter.value)}
-          className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-            activeFilter === filter.value
+      {filters.map((filter) => {
+        const isSelected = activeFilter === filter.value;
+        const buttonProps: React.ButtonHTMLAttributes<HTMLButtonElement> = {
+          onClick: () => onFilterChange(filter.value),
+          className: `rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+            isSelected
               ? "bg-[hsl(25,35%,25%)] text-white"
               : "bg-[hsl(35,20%,95%)] text-[hsl(25,35%,45%)] hover:bg-[hsl(35,20%,90%)]"
-          }`}
-          role="tab"
-          aria-selected={activeFilter === filter.value}
-          aria-controls="orders-list"
-        >
-          {filter.label} ({orderCounts[filter.value]})
-        </button>
-      ))}
+          }`,
+          "aria-pressed": isSelected ? "true" : "false",
+        };
+        return (
+          <button key={filter.value} {...buttonProps}>
+            {filter.label} ({orderCounts[filter.value]})
+          </button>
+        );
+      })}
     </div>
   );
 }
