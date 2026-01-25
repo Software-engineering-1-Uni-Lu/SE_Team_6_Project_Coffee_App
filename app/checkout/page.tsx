@@ -81,11 +81,13 @@ export default function CheckoutPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"card" | "cash">("card");
   const [pickupTime, setPickupTime] = useState<Date | null>(null);
+  const [pointsPerEuro, setPointsPerEuro] = useState<number>(10);
 
   // Calculate totals (EU VAT logic - prices include tax)
   const total = totalPrice; // Total stays the same as cart
   const netPrice = Math.round(total / (1 + TAX_RATE)); // Price without VAT
   const tax = total - netPrice; // VAT amount included in the price
+  const estimatedPoints = Math.max(0, Math.floor(total / 100) * pointsPerEuro);
 
   const isGuest = !user;
 
@@ -116,6 +118,32 @@ export default function CheckoutPage() {
       setPaymentMethod(watchedPaymentMethod);
     }
   }, [watchedPaymentMethod]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const fetchPointsRate = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("settings")
+          .select("points_per_euro")
+          .limit(1)
+          .single();
+
+        if (!error && data?.points_per_euro && isActive) {
+          setPointsPerEuro(data.points_per_euro);
+        }
+      } catch {
+        // Use default points ratio when settings fetch fails.
+      }
+    };
+
+    fetchPointsRate();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   // Redirect if cart is empty (only after cart has finished loading)
   useEffect(() => {
@@ -782,6 +810,23 @@ export default function CheckoutPage() {
                       {formatPrice(total)}
                     </span>
                   </div>
+                </div>
+
+                <div className="mt-4 rounded-md border border-[hsl(35,20%,90%)] bg-[hsl(35,20%,98%)] p-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-[hsl(25,35%,45%)]">
+                      Estimated loyalty points
+                    </span>
+                    <span
+                      className="font-semibold text-[hsl(25,35%,25%)]"
+                      data-testid="estimated-loyalty-points"
+                    >
+                      {estimatedPoints} pts
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-[hsl(25,35%,45%)]">
+                    Awarded when the order is completed and paid.
+                  </p>
                 </div>
 
                 {/* Pickup Time Display */}
