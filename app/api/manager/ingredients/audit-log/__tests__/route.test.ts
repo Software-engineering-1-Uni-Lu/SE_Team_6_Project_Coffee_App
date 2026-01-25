@@ -285,8 +285,8 @@ describe("GET /api/manager/ingredients/audit-log", () => {
     });
 
     it("should handle database errors", async () => {
-      mockSupabaseClient.from.mockImplementation((table: string) => {
-        const mockFrom = {
+      mockSupabaseClient.from.mockImplementation((table: string): any => {
+        const mockFrom: any = {
           select: jest.fn().mockReturnThis(),
           eq: jest.fn().mockReturnThis(),
           order: jest.fn().mockReturnThis(),
@@ -295,10 +295,11 @@ describe("GET /api/manager/ingredients/audit-log", () => {
             error: { message: "Database error" },
             count: null,
           }),
+          single: jest.fn(),
         };
 
         if (table === "user_roles") {
-          mockFrom.single = jest.fn().mockResolvedValue({
+          mockFrom.single.mockResolvedValue({
             data: { role: "manager" },
             error: null,
           });

@@ -241,8 +241,8 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
       capturedUpdateData = null;
 
       // Setup role check
-      mockSupabaseClient.from.mockImplementation((table: string) => {
-        const mockFrom = {
+      mockSupabaseClient.from.mockImplementation((table: string): any => {
+        const mockFrom: any = {
           select: jest.fn().mockReturnThis(),
           eq: jest.fn().mockReturnThis(),
           single: jest.fn(),
