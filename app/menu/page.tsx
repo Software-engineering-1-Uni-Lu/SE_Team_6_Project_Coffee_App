@@ -71,7 +71,7 @@ export default function MenuPage() {
 
   // Handle add to cart
   const handleAddToCart = async (item: MenuItem) => {
-    if (!item.is_available_now) return;
+    if (!item.is_available_now || (item as any).sold_out) return;
 
     setAddingToCart(item.id);
     try {
@@ -228,32 +228,46 @@ export default function MenuPage() {
                   <div className="flex items-center gap-2">
                     <div
                       className={`h-2 w-2 rounded-full ${
-                        item.is_available_now ? "bg-green-500" : "bg-gray-400"
+                        item.is_available_now && !(item as any).sold_out
+                          ? "bg-green-500"
+                          : "bg-gray-400"
                       }`}
                     ></div>
                     <span
                       className={`text-xs font-medium ${
-                        item.is_available_now
+                        item.is_available_now && !(item as any).sold_out
                           ? "text-green-700"
                           : "text-gray-500"
                       }`}
                     >
-                      {item.is_available_now ? "Available" : "Unavailable"}
+                      {(item as any).sold_out
+                        ? "Sold Out"
+                        : item.is_available_now
+                          ? "Available"
+                          : "Unavailable"}
                     </span>
                   </div>
 
                   <button
                     disabled={
-                      !item.is_available_now || addingToCart === item.id
+                      !item.is_available_now ||
+                      (item as any).sold_out ||
+                      addingToCart === item.id
                     }
                     onClick={() => handleAddToCart(item)}
                     className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-                      item.is_available_now && addingToCart !== item.id
+                      item.is_available_now &&
+                      !(item as any).sold_out &&
+                      addingToCart !== item.id
                         ? "bg-[hsl(25,35%,25%)] text-white hover:bg-[hsl(25,40%,15%)]"
                         : "cursor-not-allowed bg-gray-300 text-gray-500"
                     }`}
                   >
-                    {addingToCart === item.id ? "Adding..." : "Add to Cart"}
+                    {addingToCart === item.id
+                      ? "Adding..."
+                      : (item as any).sold_out
+                        ? "Sold Out"
+                        : "Add to Cart"}
                   </button>
                 </div>
               </div>

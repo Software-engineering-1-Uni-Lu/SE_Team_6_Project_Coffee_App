@@ -7,9 +7,11 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { createClient } from "@/src/integrations/supabase/client";
 import type { MenuItem, Category } from "@/src/types/menu";
 import { ManagerMenuItemModal } from "@/src/components/manager-menu-item-modal";
+import { StockAdjustmentModal } from "@/src/components/stock-adjustment-modal";
 import { formatPrice } from "@/src/lib/cart-utils";
 import { toast } from "sonner";
 
@@ -21,6 +23,10 @@ export default function ManagerMenuPage() {
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+  const [isStockModalOpen, setIsStockModalOpen] = useState(false);
+  const [stockAdjustingItem, setStockAdjustingItem] = useState<MenuItem | null>(
+    null
+  );
 
   useEffect(() => {
     fetchData();
@@ -97,6 +103,49 @@ export default function ManagerMenuPage() {
     handleModalClose();
   };
 
+  const handleStockAdjust = (item: MenuItem) => {
+    setStockAdjustingItem(item);
+    setIsStockModalOpen(true);
+  };
+
+  const handleStockModalClose = () => {
+    setIsStockModalOpen(false);
+    setStockAdjustingItem(null);
+  };
+
+  const handleStockModalSuccess = () => {
+    fetchData();
+    handleStockModalClose();
+  };
+
+  const handleToggleSoldOut = async (item: MenuItem) => {
+    try {
+      const currentSoldOut = (item as any).sold_out || false;
+      const response = await fetch(`/api/menu/items/${item.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sold_out: !currentSoldOut,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to update sold out status");
+      }
+
+      toast.success(
+        currentSoldOut ? "Item marked as available" : "Item marked as sold out"
+      );
+      fetchData();
+    } catch (error: any) {
+      console.error("Error toggling sold out status:", error);
+      toast.error(error.message || "Failed to update sold out status");
+    }
+  };
+
   const filteredItems = selectedCategory
     ? items.filter((item) => item.category_id === selectedCategory)
     : items;
@@ -130,12 +179,26 @@ export default function ManagerMenuPage() {
               Manage your menu items and categories
             </p>
           </div>
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="rounded-md bg-[hsl(25,35%,25%)] px-4 py-2 text-white transition-colors hover:bg-[hsl(25,40%,15%)]"
-          >
-            Add Item
-          </button>
+          <div className="flex gap-3">
+            <Link
+              href="/manager/ingredients/bulk-import"
+              className="rounded-md border border-[hsl(35,20%,90%)] bg-white px-4 py-2 text-[hsl(25,35%,25%)] transition-colors hover:bg-[hsl(35,20%,95%)]"
+            >
+              Bulk Import
+            </Link>
+            <Link
+              href="/manager/ingredients/audit-log"
+              className="rounded-md border border-[hsl(35,20%,90%)] bg-white px-4 py-2 text-[hsl(25,35%,25%)] transition-colors hover:bg-[hsl(35,20%,95%)]"
+            >
+              Audit Log
+            </Link>
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="rounded-md bg-[hsl(25,35%,25%)] px-4 py-2 text-white transition-colors hover:bg-[hsl(25,40%,15%)]"
+            >
+              Add Item
+            </button>
+          </div>
         </header>
 
         {error && (
@@ -247,6 +310,15 @@ export default function ManagerMenuPage() {
                       )}
                     </div>
 
+                    {/* Sold Out Status */}
+                    {(item as any).sold_out && (
+                      <div className="mb-3">
+                        <span className="inline-flex items-center rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-800">
+                          Sold Out
+                        </span>
+                      </div>
+                    )}
+
                     {/* Inventory Status */}
                     {(item as any).track_inventory && (
                       <div className="mb-3">
@@ -275,19 +347,41 @@ export default function ManagerMenuPage() {
                     )}
 
                     {/* Actions */}
-                    <div className="flex gap-2">
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleEdit(item)}
+                          className="flex-1 rounded-md border border-[hsl(35,20%,90%)] bg-white px-3 py-2 text-sm font-medium text-[hsl(25,35%,25%)] transition-colors hover:bg-[hsl(35,20%,95%)]"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(item.id)}
+                          className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+                        >
+                          Delete
+                        </button>
+                      </div>
                       <button
-                        onClick={() => handleEdit(item)}
-                        className="flex-1 rounded-md border border-[hsl(35,20%,90%)] bg-white px-3 py-2 text-sm font-medium text-[hsl(25,35%,25%)] transition-colors hover:bg-[hsl(35,20%,95%)]"
+                        onClick={() => handleToggleSoldOut(item)}
+                        className={`w-full rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                          (item as any).sold_out
+                            ? "border-green-300 bg-green-50 text-green-700 hover:bg-green-100"
+                            : "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100"
+                        }`}
                       >
-                        Edit
+                        {(item as any).sold_out
+                          ? "Mark Available"
+                          : "Mark Sold Out"}
                       </button>
-                      <button
-                        onClick={() => handleDelete(item.id)}
-                        className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
-                      >
-                        Delete
-                      </button>
+                      {(item as any).track_inventory && (
+                        <button
+                          onClick={() => handleStockAdjust(item)}
+                          className="w-full rounded-md border border-[hsl(25,35%,25%)] bg-[hsl(25,35%,25%)] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[hsl(25,40%,15%)]"
+                        >
+                          Adjust Stock
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -303,6 +397,24 @@ export default function ManagerMenuPage() {
         onSuccess={handleModalSuccess}
         item={editingItem}
         categories={categories}
+      />
+
+      <StockAdjustmentModal
+        isOpen={isStockModalOpen}
+        onClose={handleStockModalClose}
+        onSuccess={handleStockModalSuccess}
+        item={
+          stockAdjustingItem
+            ? {
+                id: stockAdjustingItem.id,
+                name: stockAdjustingItem.name,
+                stock_quantity:
+                  (stockAdjustingItem as any).stock_quantity ?? null,
+                low_stock_threshold:
+                  (stockAdjustingItem as any).low_stock_threshold ?? null,
+              }
+            : null
+        }
       />
     </>
   );

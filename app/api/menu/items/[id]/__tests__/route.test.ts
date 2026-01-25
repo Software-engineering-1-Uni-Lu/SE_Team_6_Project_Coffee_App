@@ -237,6 +237,55 @@ describe("PATCH /api/menu/items/[id]", () => {
       expect(response.status).toBe(200);
       expect(data.item).toEqual(mockUpdateData);
     });
+
+    it("should allow updating sold_out status", async () => {
+      const mockUser = mockUsers.manager;
+      mockSupabaseClient.auth.getUser.mockResolvedValue({
+        data: { user: mockUser },
+        error: null,
+      });
+
+      const mockUpdateData = {
+        id: "item-123",
+        name: "Americano",
+        sold_out: true,
+      };
+
+      mockSupabaseClient.from.mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            single: jest.fn().mockResolvedValue({
+              data: { role: "manager" },
+              error: null,
+            }),
+          }),
+        }),
+        update: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            select: jest.fn().mockReturnValue({
+              single: jest.fn().mockResolvedValue({
+                data: mockUpdateData,
+                error: null,
+              }),
+            }),
+          }),
+        }),
+      });
+
+      const request = createMockRequest(
+        "http://localhost:3000/api/menu/items/item-123",
+        {
+          method: "PATCH",
+          body: { sold_out: true },
+        }
+      );
+
+      const response = await PATCH(request, mockParams);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.item.sold_out).toBe(true);
+    });
   });
 
   describe("Price Validation", () => {

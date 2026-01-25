@@ -80,6 +80,7 @@ export async function PATCH(
       track_inventory,
       low_stock_threshold,
       reorder_quantity,
+      sold_out,
     } = body;
 
     // Validate price if provided
@@ -112,6 +113,7 @@ export async function PATCH(
       updates.low_stock_threshold = low_stock_threshold;
     if (reorder_quantity !== undefined)
       updates.reorder_quantity = reorder_quantity;
+    if (sold_out !== undefined) updates.sold_out = sold_out;
 
     const { data, error } = await supabase
       .from("items")
