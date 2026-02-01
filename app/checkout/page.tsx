@@ -820,11 +820,16 @@ export default function CheckoutPage() {
                             ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                             : "border-[hsl(35,20%,90%)] focus:border-[hsl(25,35%,25%)] focus:ring-[hsl(25,35%,25%)]"
                         }`}
-                        placeholder="1234 5678 9012 3456"
+                        placeholder="4242 4242 4242 4242"
                       />
                       {errors.cardNumber && (
                         <p className="mt-1 text-xs text-red-500">
                           {errors.cardNumber.message}
+                        </p>
+                      )}
+                      {!errors.cardNumber && (
+                        <p className="mt-1 text-xs text-[hsl(25,20%,50%)]">
+                          16 digits required. Test: 4242 4242 4242 4242
                         </p>
                       )}
                     </div>
@@ -872,11 +877,16 @@ export default function CheckoutPage() {
                               ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                               : "border-[hsl(35,20%,90%)] focus:border-[hsl(25,35%,25%)] focus:ring-[hsl(25,35%,25%)]"
                           }`}
-                          placeholder="MM/YY"
+                          placeholder="12/27"
                         />
                         {errors.expiry && (
                           <p className="mt-1 text-xs text-red-500">
                             {errors.expiry.message}
+                          </p>
+                        )}
+                        {!errors.expiry && (
+                          <p className="mt-1 text-xs text-[hsl(25,20%,50%)]">
+                            Format: MM/YY (future date)
                           </p>
                         )}
                       </div>
@@ -902,6 +912,11 @@ export default function CheckoutPage() {
                         {errors.cvc && (
                           <p className="mt-1 text-xs text-red-500">
                             {errors.cvc.message}
+                          </p>
+                        )}
+                        {!errors.cvc && (
+                          <p className="mt-1 text-xs text-[hsl(25,20%,50%)]">
+                            3 digits on back of card
                           </p>
                         )}
                       </div>

@@ -82,7 +82,7 @@ function OrderCard({
                 ⚡ Priority
               </span>
             )}
-            {order.guest_name && (
+            {!order.customer_id && (
               <span className="inline-flex items-center rounded-full border border-purple-300 bg-purple-100 px-2 py-0.5 text-xs font-semibold text-purple-800">
                 Guest
               </span>
@@ -349,7 +349,7 @@ function OrderDetailModal({
             {/* Status */}
             <div className="flex items-center gap-3">
               <StatusBadge status={order.status} />
-              {order.guest_name && (
+              {!order.customer_id && (
                 <span className="inline-flex items-center rounded-full border border-purple-300 bg-purple-100 px-2 py-0.5 text-xs font-semibold text-purple-800">
                   Guest Order
                 </span>
