@@ -152,16 +152,14 @@ describe("POST /api/orders/lookup", () => {
       expect(data.error).toBe("Order not found for that email");
     });
 
-    it("should return orders for matching guest email", async () => {
-      const mockOrders = [
-        { id: "order-1", guest_email: "guest@test.com" },
-        { id: "order-2", guest_email: "guest@test.com" },
-      ];
+    it("should return only the specific order that was requested", async () => {
+      const mockOrder = { id: "order-1", guest_email: "guest@test.com" };
 
       let callCount = 0;
       mockSelect.mockImplementation(() => {
         callCount++;
         if (callCount === 1) {
+          // First call: verify ownership
           return {
             eq: jest.fn().mockReturnValue({
               ilike: jest.fn().mockReturnValue({
@@ -173,10 +171,11 @@ describe("POST /api/orders/lookup", () => {
             }),
           };
         } else {
+          // Second call: fetch the specific order
           return {
-            ilike: jest.fn().mockReturnValue({
-              order: jest.fn().mockResolvedValue({
-                data: mockOrders,
+            eq: jest.fn().mockReturnValue({
+              single: jest.fn().mockResolvedValue({
+                data: mockOrder,
                 error: null,
               }),
             }),
@@ -199,7 +198,8 @@ describe("POST /api/orders/lookup", () => {
       const data = await response.json();
 
       expect(response.status).toBe(200);
-      expect(data.orders).toEqual(mockOrders);
+      expect(data.orders).toEqual([mockOrder]);
+      expect(data.orders).toHaveLength(1);
     });
 
     it("should normalize email to lowercase", async () => {
@@ -213,10 +213,8 @@ describe("POST /api/orders/lookup", () => {
       mockSelect.mockReturnValue({
         eq: jest.fn().mockReturnValue({
           ilike: mockIlike,
-        }),
-        ilike: jest.fn().mockReturnValue({
-          order: jest.fn().mockResolvedValue({
-            data: [],
+          single: jest.fn().mockResolvedValue({
+            data: { id: "order-1", guest_email: "guest@test.com" },
             error: null,
           }),
         }),
@@ -247,10 +245,8 @@ describe("POST /api/orders/lookup", () => {
               error: null,
             }),
           }),
-        }),
-        ilike: jest.fn().mockReturnValue({
-          order: jest.fn().mockResolvedValue({
-            data: [],
+          single: jest.fn().mockResolvedValue({
+            data: { id: "order-1", guest_email: "guest@test.com" },
             error: null,
           }),
         }),
@@ -321,8 +317,8 @@ describe("POST /api/orders/lookup", () => {
           };
         } else {
           return {
-            ilike: jest.fn().mockReturnValue({
-              order: jest.fn().mockResolvedValue({
+            eq: jest.fn().mockReturnValue({
+              single: jest.fn().mockResolvedValue({
                 data: null,
                 error: { message: "Database error" },
               }),
