@@ -78,8 +78,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Step 2: Return all orders associated with that guest email (most recent first)
-    const { data: orders, error: lookupError } = await supabaseAdmin
+    // Step 2: Return only the specific order that was requested
+    const { data: order, error: lookupError } = await supabaseAdmin
       .from("orders")
       .select(
         `
@@ -92,18 +92,19 @@ export async function POST(request: NextRequest) {
         )
       `
       )
-      .ilike("guest_email", normalizedEmail)
-      .order("created_at", { ascending: false });
+      .eq("id", orderId)
+      .single();
 
     if (lookupError) {
-      console.error("Error fetching guest orders:", lookupError);
+      console.error("Error fetching guest order:", lookupError);
       return NextResponse.json(
-        { error: "Failed to fetch orders" },
+        { error: "Failed to fetch order" },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ orders: orders || [] });
+    // Return as array for compatibility with existing frontend code
+    return NextResponse.json({ orders: [order] });
   } catch (error) {
     console.error("Unexpected error in POST /api/orders/lookup:", error);
     return NextResponse.json(

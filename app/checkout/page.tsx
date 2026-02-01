@@ -23,10 +23,12 @@ import { PickupTimePicker } from "@/src/components/pickup-time-picker";
 
 const TAX_RATE = 0.1; // 10% tax rate
 
-// Base checkout schema with optional guest fields
+// Base checkout schema with optional guest fields and customer fields
 const baseCheckoutSchema = z.object({
   guest_name: z.string().optional(),
   guest_email: z.string().email().optional().or(z.literal("")),
+  customer_name: z.string().optional(),
+  customer_email: z.string().email().optional().or(z.literal("")),
   paymentMethod: z.enum(["card", "cash", "loyalty_points"]),
   cardNumber: z.string().optional(),
   cardName: z.string().optional(),
@@ -116,6 +118,8 @@ export default function CheckoutPage() {
     defaultValues: {
       guest_name: "",
       guest_email: "",
+      customer_name: "",
+      customer_email: "",
       paymentMethod: "card",
       cardNumber: "",
       cardName: "",
@@ -132,6 +136,14 @@ export default function CheckoutPage() {
       setPaymentMethod(watchedPaymentMethod);
     }
   }, [watchedPaymentMethod]);
+
+  // Pre-populate customer contact fields for authenticated users
+  useEffect(() => {
+    if (user && !isGuest) {
+      setValue("customer_name", user.user_metadata?.full_name || "");
+      setValue("customer_email", user.email || "");
+    }
+  }, [user, isGuest, setValue]);
 
   useEffect(() => {
     let isActive = true;
@@ -157,6 +169,7 @@ export default function CheckoutPage() {
     return () => {
       isActive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -280,6 +293,20 @@ export default function CheckoutPage() {
           toast.error("Please enter a valid email address");
           return;
         }
+      } else {
+        // Validate customer fields for authenticated users
+        if (!data.customer_name || !data.customer_name.trim()) {
+          toast.error("Please enter a name for this order");
+          return;
+        }
+        if (!data.customer_email || !data.customer_email.trim()) {
+          toast.error("Please enter an email for this order");
+          return;
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.customer_email)) {
+          toast.error("Please enter a valid email address");
+          return;
+        }
       }
 
       // Prepare order items in the format expected by the database
@@ -294,7 +321,7 @@ export default function CheckoutPage() {
       }));
 
       // Prepare order data
-      // For authenticated users: customer_id is set, guest_name and guest_email are null
+      // For authenticated users: customer_id is set, guest_name and guest_email store the custom contact info
       // For guest users: customer_id is null, guest_name and guest_email are set
       const orderData: {
         customer_id: string | null;
@@ -310,8 +337,13 @@ export default function CheckoutPage() {
         pickup_time: string | null;
       } = {
         customer_id: isActuallyGuest ? null : currentUser?.id || null,
-        guest_name: isActuallyGuest ? data.guest_name?.trim() || null : null,
-        guest_email: isActuallyGuest ? data.guest_email?.trim() || null : null,
+        // Use customer fields for authenticated users, guest fields for guests
+        guest_name: isActuallyGuest
+          ? data.guest_name?.trim() || null
+          : data.customer_name?.trim() || null,
+        guest_email: isActuallyGuest
+          ? data.guest_email?.trim() || null
+          : data.customer_email?.trim() || null,
         status: "pending",
         items: orderItems,
         subtotal_cents: netPrice,
@@ -610,13 +642,65 @@ export default function CheckoutPage() {
                     </div>
                   )}
 
-                  {/* Authenticated User Info */}
+                  {/* Customer Contact Fields - For authenticated users */}
                   {!isGuest && user && (
-                    <div className="rounded-lg bg-[hsl(35,20%,95%)] p-4">
-                      <p className="text-sm font-medium text-[hsl(25,35%,25%)]">
-                        Ordering as: {user.email}
-                      </p>
-                    </div>
+                    <>
+                      <div>
+                        <label
+                          htmlFor="customer_name"
+                          className="mb-2 block text-sm font-medium text-[hsl(25,35%,25%)]"
+                        >
+                          Name for Order <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          id="customer_name"
+                          {...register("customer_name")}
+                          className={`w-full rounded-md border px-4 py-2 text-[hsl(25,35%,25%)] transition-colors focus:outline-none focus:ring-2 focus:ring-opacity-20 ${
+                            errors.customer_name
+                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                              : "border-[hsl(35,20%,90%)] focus:border-[hsl(25,35%,25%)] focus:ring-[hsl(25,35%,25%)]"
+                          }`}
+                          placeholder="John Doe"
+                        />
+                        {errors.customer_name && (
+                          <p className="mt-1 text-xs text-red-500">
+                            {errors.customer_name.message}
+                          </p>
+                        )}
+                        <p className="mt-1 text-xs text-[hsl(25,20%,50%)]">
+                          Edit this to order for someone else
+                        </p>
+                      </div>
+                      <div>
+                        <label
+                          htmlFor="customer_email"
+                          className="mb-2 block text-sm font-medium text-[hsl(25,35%,25%)]"
+                        >
+                          Email for Order{" "}
+                          <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="email"
+                          id="customer_email"
+                          {...register("customer_email")}
+                          className={`w-full rounded-md border px-4 py-2 text-[hsl(25,35%,25%)] transition-colors focus:outline-none focus:ring-2 focus:ring-opacity-20 ${
+                            errors.customer_email
+                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                              : "border-[hsl(35,20%,90%)] focus:border-[hsl(25,35%,25%)] focus:ring-[hsl(25,35%,25%)]"
+                          }`}
+                          placeholder="john@example.com"
+                        />
+                        {errors.customer_email && (
+                          <p className="mt-1 text-xs text-red-500">
+                            {errors.customer_email.message}
+                          </p>
+                        )}
+                        <p className="mt-1 text-xs text-[hsl(25,20%,50%)]">
+                          This email will be used for order notifications
+                        </p>
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
@@ -736,11 +820,16 @@ export default function CheckoutPage() {
                             ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                             : "border-[hsl(35,20%,90%)] focus:border-[hsl(25,35%,25%)] focus:ring-[hsl(25,35%,25%)]"
                         }`}
-                        placeholder="1234 5678 9012 3456"
+                        placeholder="4242 4242 4242 4242"
                       />
                       {errors.cardNumber && (
                         <p className="mt-1 text-xs text-red-500">
                           {errors.cardNumber.message}
+                        </p>
+                      )}
+                      {!errors.cardNumber && (
+                        <p className="mt-1 text-xs text-[hsl(25,20%,50%)]">
+                          16 digits required. Test: 4242 4242 4242 4242
                         </p>
                       )}
                     </div>
@@ -788,11 +877,16 @@ export default function CheckoutPage() {
                               ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                               : "border-[hsl(35,20%,90%)] focus:border-[hsl(25,35%,25%)] focus:ring-[hsl(25,35%,25%)]"
                           }`}
-                          placeholder="MM/YY"
+                          placeholder="12/27"
                         />
                         {errors.expiry && (
                           <p className="mt-1 text-xs text-red-500">
                             {errors.expiry.message}
+                          </p>
+                        )}
+                        {!errors.expiry && (
+                          <p className="mt-1 text-xs text-[hsl(25,20%,50%)]">
+                            Format: MM/YY (future date)
                           </p>
                         )}
                       </div>
@@ -818,6 +912,11 @@ export default function CheckoutPage() {
                         {errors.cvc && (
                           <p className="mt-1 text-xs text-red-500">
                             {errors.cvc.message}
+                          </p>
+                        )}
+                        {!errors.cvc && (
+                          <p className="mt-1 text-xs text-[hsl(25,20%,50%)]">
+                            3 digits on back of card
                           </p>
                         )}
                       </div>

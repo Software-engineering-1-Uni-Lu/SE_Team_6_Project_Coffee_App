@@ -159,7 +159,7 @@ function DetailModal({
           <div>
             <div className="flex items-center gap-3">
               <StatusBadge status={order.status} />
-              {order.guest_name && (
+              {!order.customer_id && (
                 <span className="rounded-full bg-[hsl(25,75%,94%)] px-2 py-1 text-xs font-semibold text-[hsl(25,65%,35%)]">
                   Guest order
                 </span>
@@ -191,9 +191,9 @@ function DetailModal({
             <div className="text-sm text-[hsl(25,25%,45%)]">
               {customerEmail}
             </div>
-            {order.guest_name && (
+            {!order.customer_id && (
               <div className="text-sm text-[hsl(25,25%,45%)]">
-                Guest name provided at checkout.
+                Guest checkout (no account)
               </div>
             )}
           </div>
@@ -322,7 +322,7 @@ function OrderCard({ order, onClick }: { order: Order; onClick: () => void }) {
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={order.status} />
-            {order.guest_name && (
+            {!order.customer_id && (
               <span className="rounded-full bg-[hsl(25,75%,94%)] px-2 py-1 text-[11px] font-semibold text-[hsl(25,65%,35%)]">
                 Guest
               </span>
