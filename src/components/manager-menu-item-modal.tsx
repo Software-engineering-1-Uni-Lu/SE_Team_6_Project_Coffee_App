@@ -7,7 +7,19 @@
 
 import { useState, useEffect } from "react";
 import type { MenuItem, Category, Modifier } from "@/src/types/menu";
+import { createClient } from "@/src/integrations/supabase/client";
 import { toast } from "sonner";
+
+interface IngredientOption {
+  id: string;
+  name: string;
+  unit: string;
+}
+
+interface RecipeRow {
+  bean_id: string;
+  quantity_needed: number;
+}
 
 interface ManagerMenuItemModalProps {
   isOpen: boolean;
@@ -26,6 +38,10 @@ export function ManagerMenuItemModal({
 }: ManagerMenuItemModalProps) {
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [ingredientOptions, setIngredientOptions] = useState<
+    IngredientOption[]
+  >([]);
+  const [recipeRows, setRecipeRows] = useState<RecipeRow[]>([]);
   const [formData, setFormData] = useState({
     category_id: "",
     name: "",
@@ -95,6 +111,29 @@ export function ManagerMenuItemModal({
       });
     }
   }, [item, categories]);
+
+  // Fetch available ingredients and existing recipe for this item
+  useEffect(() => {
+    if (!isOpen) return;
+    const supabase = createClient();
+
+    supabase
+      .from("beans")
+      .select("id, name, unit")
+      .eq("active", true)
+      .order("name")
+      .then(({ data }) => setIngredientOptions(data || []));
+
+    if (item) {
+      supabase
+        .from("item_ingredients")
+        .select("bean_id, quantity_needed")
+        .eq("item_id", item.id)
+        .then(({ data }) => setRecipeRows(data || []));
+    } else {
+      setRecipeRows([]);
+    }
+  }, [isOpen, item]);
 
   const generateSlug = (name: string) => {
     return name
@@ -178,6 +217,29 @@ export function ManagerMenuItemModal({
       if (!response.ok) {
         const data = await response.json();
         throw new Error(data.error || "Failed to save item");
+      }
+
+      const result = await response.json();
+      const itemId = item?.id || result.item?.id;
+
+      // Save recipe (ingredient linkages)
+      if (itemId) {
+        const supabase = createClient();
+        await supabase.from("item_ingredients").delete().eq("item_id", itemId);
+        const validRows = recipeRows.filter(
+          (r) => r.bean_id && r.quantity_needed > 0
+        );
+        if (validRows.length > 0) {
+          await supabase
+            .from("item_ingredients")
+            .insert(
+              validRows.map((r) => ({
+                item_id: itemId,
+                bean_id: r.bean_id,
+                quantity_needed: r.quantity_needed,
+              }))
+            );
+        }
       }
 
       toast.success(
@@ -567,6 +629,98 @@ export function ManagerMenuItemModal({
                       </p>
                     </div>
                   </>
+                )}
+              </div>
+
+              {/* Ingredients / Recipe */}
+              <div className="space-y-4 border-t pt-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-[hsl(25,35%,25%)]">
+                    Ingredients (Recipe)
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setRecipeRows((prev) => [
+                        ...prev,
+                        { bean_id: "", quantity_needed: 0 },
+                      ])
+                    }
+                    className="rounded-md border border-[hsl(35,20%,85%)] px-3 py-1 text-sm font-medium text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,95%)]"
+                  >
+                    + Add Ingredient
+                  </button>
+                </div>
+                <p className="text-xs text-[hsl(25,35%,45%)]">
+                  Define how much of each ingredient is consumed per order of
+                  this item.
+                </p>
+                {recipeRows.length === 0 ? (
+                  <p className="text-sm text-[hsl(25,35%,45%)]">
+                    No ingredients linked.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {recipeRows.map((row, idx) => {
+                      const selectedIng = ingredientOptions.find(
+                        (i) => i.id === row.bean_id
+                      );
+                      return (
+                        <div key={idx} className="flex items-center gap-2">
+                          <select
+                            value={row.bean_id}
+                            onChange={(e) => {
+                              const updated = [...recipeRows];
+                              updated[idx] = {
+                                ...updated[idx],
+                                bean_id: e.target.value,
+                              };
+                              setRecipeRows(updated);
+                            }}
+                            className="flex-1 rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)]"
+                          >
+                            <option value="">Select ingredient</option>
+                            {ingredientOptions.map((ing) => (
+                              <option key={ing.id} value={ing.id}>
+                                {ing.name} ({ing.unit})
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={row.quantity_needed || ""}
+                            onChange={(e) => {
+                              const updated = [...recipeRows];
+                              updated[idx] = {
+                                ...updated[idx],
+                                quantity_needed:
+                                  parseFloat(e.target.value) || 0,
+                              };
+                              setRecipeRows(updated);
+                            }}
+                            placeholder="Qty"
+                            className="w-24 rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)]"
+                          />
+                          <span className="text-xs text-[hsl(25,35%,45%)]">
+                            {selectedIng?.unit || ""}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setRecipeRows((prev) =>
+                                prev.filter((_, i) => i !== idx)
+                              )
+                            }
+                            className="rounded text-red-500 hover:text-red-700"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             </div>

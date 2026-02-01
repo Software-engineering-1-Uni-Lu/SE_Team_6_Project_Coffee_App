@@ -46,8 +46,26 @@ export default function MenuPage() {
 
         if (itemsError) throw itemsError;
 
+        // Check which items have insufficient ingredient stock for their recipe
+        const { data: recipeData } = await supabase
+          .from("item_ingredients")
+          .select("item_id, quantity_needed, beans(stock_quantity)");
+
+        const outOfStockIds = new Set<string>();
+        for (const row of recipeData || []) {
+          const stock = (row as any).beans?.stock_quantity ?? 0;
+          if (stock < row.quantity_needed) {
+            outOfStockIds.add(row.item_id);
+          }
+        }
+
+        const enrichedItems = (itemsData || []).map((item: any) => ({
+          ...item,
+          sold_out: item.sold_out || outOfStockIds.has(item.id),
+        }));
+
         setCategories(categoriesData || []);
-        setItems(itemsData || []);
+        setItems(enrichedItems);
       } catch (err) {
         console.error("Error fetching menu data:", err);
         setError("Failed to load menu. Please try again later.");

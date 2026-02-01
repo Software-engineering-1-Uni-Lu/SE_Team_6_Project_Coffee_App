@@ -46,7 +46,30 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ items: items || [] }, { status: 200 });
+    // Check ingredient stock: mark items as out_of_stock if any linked ingredient has insufficient stock
+    let outOfStockItemIds = new Set<string>();
+    try {
+      const { data: recipeData } = await supabase
+        .from("item_ingredients")
+        .select("item_id, quantity_needed, beans(stock_quantity)");
+
+      for (const row of (recipeData || []) as any[]) {
+        const stock = row.beans?.stock_quantity ?? 0;
+        if (stock < row.quantity_needed) {
+          outOfStockItemIds.add(row.item_id);
+        }
+      }
+    } catch {
+      // item_ingredients table may not exist yet; skip stock check
+    }
+
+    const enrichedItems = (items || []).map((item: any) =>
+      outOfStockItemIds.has(item.id)
+        ? { ...item, out_of_stock_ingredients: true }
+        : item
+    );
+
+    return NextResponse.json({ items: enrichedItems }, { status: 200 });
   } catch (error: any) {
     console.error("Unexpected error fetching items:", error);
     return NextResponse.json(
