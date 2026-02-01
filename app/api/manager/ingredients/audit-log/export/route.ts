@@ -26,8 +26,8 @@ function escapeCSVField(field: any): string {
 function generateCSV(data: any[]): string {
   const headers = [
     "Date/Time",
-    "Item ID",
-    "Item Name",
+    "Ingredient ID",
+    "Ingredient Name",
     "User ID",
     "User Name",
     "Old Quantity",
@@ -38,8 +38,8 @@ function generateCSV(data: any[]): string {
 
   const rows = data.map((entry) => [
     entry.created_at,
-    entry.item_id,
-    entry.item_name || "",
+    entry.ingredient_id,
+    entry.ingredient_name || "",
     entry.user_id,
     entry.user_name || "",
     entry.old_quantity,
@@ -114,23 +114,22 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get("end_date");
     const reason = searchParams.get("reason");
 
-    // Build query (no pagination for export - get all matching records)
+    // Build query (bean_stock_audit_log = ingredient stock audit)
     let query = supabase
-      .from("stock_audit_log")
+      .from("bean_stock_audit_log")
       .select(
         `
         id,
-        item_id,
+        bean_id,
         user_id,
         old_quantity,
         new_quantity,
         reason,
         note,
         created_at,
-        items:item_id (
+        beans:bean_id (
           id,
-          name,
-          slug
+          name
         ),
         profiles:user_id (
           id,
@@ -141,9 +140,9 @@ export async function GET(request: NextRequest) {
       )
       .order("created_at", { ascending: false });
 
-    // Apply filters
+    // Apply filters (ingredient_id = bean_id)
     if (itemId) {
-      query = query.eq("item_id", itemId);
+      query = query.eq("bean_id", itemId);
     }
 
     if (userId) {
@@ -177,8 +176,8 @@ export async function GET(request: NextRequest) {
     const formattedData =
       data?.map((entry: any) => ({
         id: entry.id,
-        item_id: entry.item_id,
-        item_name: entry.items?.name || null,
+        ingredient_id: entry.bean_id,
+        ingredient_name: entry.beans?.name || null,
         user_id: entry.user_id,
         user_name: entry.profiles?.full_name || entry.profiles?.email || null,
         old_quantity: Number(entry.old_quantity),

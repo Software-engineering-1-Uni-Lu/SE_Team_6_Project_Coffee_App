@@ -40,14 +40,14 @@ describe("GET /api/manager/ingredients/audit-log", () => {
   const mockAuditLogEntries = [
     {
       id: "audit-1",
-      item_id: "item-1",
+      bean_id: "bean-1",
       user_id: "manager-123",
       old_quantity: 1000,
       new_quantity: 1500,
       reason: "Restock",
       note: "Weekly delivery",
       created_at: "2026-01-19T10:00:00Z",
-      items: { id: "item-1", name: "Whole Milk 2%", slug: "whole-milk" },
+      beans: { id: "bean-1", name: "Whole Milk 2%" },
       profiles: {
         id: "manager-123",
         full_name: "John Manager",
@@ -56,14 +56,14 @@ describe("GET /api/manager/ingredients/audit-log", () => {
     },
     {
       id: "audit-2",
-      item_id: "item-2",
+      bean_id: "bean-2",
       user_id: "manager-123",
       old_quantity: 500,
       new_quantity: 400,
       reason: "Waste",
       note: null,
       created_at: "2026-01-19T11:00:00Z",
-      items: { id: "item-2", name: "Espresso Beans", slug: "espresso-beans" },
+      beans: { id: "bean-2", name: "Espresso Beans" },
       profiles: {
         id: "manager-123",
         full_name: "John Manager",
@@ -193,16 +193,13 @@ describe("GET /api/manager/ingredients/audit-log", () => {
             data: { role: "manager" },
             error: null,
           });
-        } else if (table === "stock_audit_log") {
-          // Make all chainable methods return mockFrom so chaining works
+        } else if (table === "bean_stock_audit_log") {
           mockFrom.eq = jest.fn().mockReturnValue(mockFrom);
           mockFrom.gte = jest.fn().mockReturnValue(mockFrom);
           mockFrom.lte = jest.fn().mockReturnValue(mockFrom);
           mockFrom.order = jest.fn().mockReturnValue(mockFrom);
           mockFrom.range = jest.fn().mockReturnValue(mockFrom);
 
-          // Make the query awaitable (thenable) - when awaited, returns the data
-          // This handles: const { data, error, count } = await query;
           mockFrom.then = jest.fn((onResolve) => {
             const result = {
               data: mockAuditLogEntries,
@@ -238,14 +235,16 @@ describe("GET /api/manager/ingredients/audit-log", () => {
 
     it("should filter by ingredient_id", async () => {
       const request = createMockRequest(
-        "http://localhost:3000/api/manager/ingredients/audit-log?ingredient_id=item-1"
+        "http://localhost:3000/api/manager/ingredients/audit-log?ingredient_id=bean-1"
       );
 
       const response = await GET(request);
       const data = await response.json();
 
       expect(response.status).toBe(200);
-      expect(mockSupabaseClient.from).toHaveBeenCalledWith("stock_audit_log");
+      expect(mockSupabaseClient.from).toHaveBeenCalledWith(
+        "bean_stock_audit_log"
+      );
     });
 
     it("should filter by reason", async () => {
@@ -289,12 +288,16 @@ describe("GET /api/manager/ingredients/audit-log", () => {
         const mockFrom: any = {
           select: jest.fn().mockReturnThis(),
           eq: jest.fn().mockReturnThis(),
+          gte: jest.fn().mockReturnThis(),
+          lte: jest.fn().mockReturnThis(),
           order: jest.fn().mockReturnThis(),
-          range: jest.fn().mockResolvedValue({
-            data: null,
-            error: { message: "Database error" },
-            count: null,
-          }),
+          range: jest.fn().mockImplementation(() =>
+            Promise.resolve({
+              data: null,
+              error: { message: "Database error" },
+              count: null,
+            })
+          ),
           single: jest.fn(),
         };
 

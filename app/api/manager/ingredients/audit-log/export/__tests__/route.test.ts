@@ -40,14 +40,14 @@ describe("GET /api/manager/ingredients/audit-log/export", () => {
   const mockAuditLogEntries = [
     {
       id: "audit-1",
-      item_id: "item-1",
+      bean_id: "bean-1",
       user_id: "manager-123",
       old_quantity: 1000,
       new_quantity: 1500,
       reason: "Restock",
       note: "Weekly delivery",
       created_at: "2026-01-19T10:00:00Z",
-      items: { id: "item-1", name: "Whole Milk 2%", slug: "whole-milk" },
+      beans: { id: "bean-1", name: "Whole Milk 2%" },
       profiles: {
         id: "manager-123",
         full_name: "John Manager",
@@ -126,14 +126,12 @@ describe("GET /api/manager/ingredients/audit-log/export", () => {
             data: { role: "manager" },
             error: null,
           });
-        } else if (table === "stock_audit_log") {
-          // Make all chainable methods return mockFrom so chaining works
+        } else if (table === "bean_stock_audit_log") {
           mockFrom.eq = jest.fn().mockReturnValue(mockFrom);
           mockFrom.gte = jest.fn().mockReturnValue(mockFrom);
           mockFrom.lte = jest.fn().mockReturnValue(mockFrom);
           mockFrom.order = jest.fn().mockReturnValue(mockFrom);
 
-          // Make the query awaitable (thenable) - when awaited, returns the data
           mockFrom.then = jest.fn((onResolve) => {
             const result = {
               data: mockAuditLogEntries,
@@ -165,13 +163,13 @@ describe("GET /api/manager/ingredients/audit-log/export", () => {
         "attachment"
       );
       expect(text).toContain("Date/Time");
-      expect(text).toContain("Item Name");
+      expect(text).toContain("Ingredient Name");
       expect(text).toContain("Whole Milk 2%");
     });
 
     it("should apply filters when provided", async () => {
       const request = createMockRequest(
-        "http://localhost:3000/api/manager/ingredients/audit-log/export?ingredient_id=item-1&reason=Restock"
+        "http://localhost:3000/api/manager/ingredients/audit-log/export?ingredient_id=bean-1&reason=Restock"
       );
 
       const response = await GET(request);
@@ -204,13 +202,12 @@ describe("GET /api/manager/ingredients/audit-log/export", () => {
             data: { role: "manager" },
             error: null,
           });
-        } else if (table === "stock_audit_log") {
+        } else if (table === "bean_stock_audit_log") {
           mockFrom.eq = jest.fn().mockReturnValue(mockFrom);
           mockFrom.gte = jest.fn().mockReturnValue(mockFrom);
           mockFrom.lte = jest.fn().mockReturnValue(mockFrom);
           mockFrom.order = jest.fn().mockReturnValue(mockFrom);
 
-          // Make the query awaitable (thenable)
           mockFrom.then = jest.fn((onResolve) => {
             const result = {
               data: entriesWithSpecialChars,
@@ -267,13 +264,17 @@ describe("GET /api/manager/ingredients/audit-log/export", () => {
             data: { role: "manager" },
             error: null,
           });
-        } else if (table === "stock_audit_log") {
+        } else if (table === "bean_stock_audit_log") {
           mockFrom.eq = jest.fn().mockReturnValue(mockFrom);
           mockFrom.gte = jest.fn().mockReturnValue(mockFrom);
           mockFrom.lte = jest.fn().mockReturnValue(mockFrom);
-          mockFrom.order = jest.fn().mockResolvedValue({
-            data: null,
-            error: { message: "Database error" },
+          mockFrom.order = jest.fn().mockReturnValue(mockFrom);
+          mockFrom.then = jest.fn((onResolve: (arg: any) => void) => {
+            const result = {
+              data: null,
+              error: { message: "Database error" },
+            };
+            return Promise.resolve(result).then(onResolve);
           });
         }
         return mockFrom;

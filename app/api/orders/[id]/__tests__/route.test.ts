@@ -200,6 +200,55 @@ describe("PATCH /api/orders/[id]", () => {
     });
   });
 
+  describe("Ingredient deduction on order confirm", () => {
+    it("calls orders update when status is confirmed (DB trigger deduct_ingredients_on_confirm deducts beans)", async () => {
+      mockSupabaseClient.auth.getUser.mockResolvedValue({
+        data: { user: mockUsers.staff },
+        error: null,
+      });
+
+      const mockUpdate = jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnValue({
+          select: jest.fn().mockReturnValue({
+            single: jest.fn().mockResolvedValue({
+              data: { id: "order-123", status: "confirmed" },
+              error: null,
+            }),
+          }),
+        }),
+      });
+
+      mockSupabaseClient.from.mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            in: jest.fn().mockReturnValue({
+              single: jest.fn().mockResolvedValue({
+                data: { role: "staff" },
+                error: null,
+              }),
+            }),
+          }),
+        }),
+        update: mockUpdate,
+      });
+
+      const request = createMockRequest(
+        "http://localhost:3000/api/orders/order-123",
+        { method: "PATCH", body: { status: "confirmed" } }
+      );
+
+      const response = await PATCH(request, { params: mockParams });
+      expect(response.status).toBe(200);
+
+      expect(mockSupabaseClient.from).toHaveBeenCalledWith("orders");
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ status: "confirmed" })
+      );
+      // In real DB, trigger deduct_ingredients_on_confirm runs on this update
+      // and deducts beans.stock_quantity per item_ingredients for each order line.
+    });
+  });
+
   describe("Successful Updates", () => {
     it("should allow staff to update order status", async () => {
       mockSupabaseClient.auth.getUser.mockResolvedValue({

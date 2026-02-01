@@ -139,13 +139,13 @@ async function validateRow(
     };
   }
 
-  const { data: item, error: itemError } = await supabase
-    .from("items")
+  const { data: bean, error: beanError } = await supabase
+    .from("beans")
     .select("id")
     .eq("id", row.ingredient_id)
     .single();
 
-  if (itemError || !item) {
+  if (beanError || !bean) {
     return {
       row: rowNumber,
       ingredient_id: row.ingredient_id,
@@ -319,19 +319,19 @@ export async function POST(request: NextRequest) {
 
     for (const row of validRows) {
       try {
-        // Get current stock
-        const { data: currentItem } = await supabase
-          .from("items")
+        // Get current stock (ingredient = bean)
+        const { data: currentBean } = await supabase
+          .from("beans")
           .select("stock_quantity")
           .eq("id", row.ingredient_id)
           .single();
 
-        const oldQuantity = currentItem?.stock_quantity || 0;
+        const oldQuantity = Number(currentBean?.stock_quantity) || 0;
         const newQuantity = Number(row.new_quantity);
 
-        // Update stock
+        // Update stock on ingredient (bean)
         const { error: updateError } = await supabase
-          .from("items")
+          .from("beans")
           .update({
             stock_quantity: newQuantity,
             updated_at: new Date().toISOString(),
@@ -347,9 +347,9 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Create audit log entry
-        await supabase.from("stock_audit_log").insert({
-          item_id: row.ingredient_id,
+        // Create audit log entry (bean_stock_audit_log)
+        await supabase.from("bean_stock_audit_log").insert({
+          bean_id: row.ingredient_id,
           user_id: user.id,
           old_quantity: oldQuantity,
           new_quantity: newQuantity,

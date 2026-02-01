@@ -6,6 +6,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
+import Image from "next/image";
 import type { MenuItem, Category, Modifier } from "@/src/types/menu";
 import { createClient } from "@/src/integrations/supabase/client";
 import { toast } from "sonner";
@@ -230,15 +232,13 @@ export function ManagerMenuItemModal({
           (r) => r.bean_id && r.quantity_needed > 0
         );
         if (validRows.length > 0) {
-          await supabase
-            .from("item_ingredients")
-            .insert(
-              validRows.map((r) => ({
-                item_id: itemId,
-                bean_id: r.bean_id,
-                quantity_needed: r.quantity_needed,
-              }))
-            );
+          await supabase.from("item_ingredients").insert(
+            validRows.map((r) => ({
+              item_id: itemId,
+              bean_id: r.bean_id,
+              quantity_needed: r.quantity_needed,
+            }))
+          );
         }
       }
 
@@ -301,10 +301,14 @@ export function ManagerMenuItemModal({
             <div className="space-y-4">
               {/* Category */}
               <div>
-                <label className="mb-1 block text-sm font-medium text-[hsl(25,35%,25%)]">
+                <label
+                  htmlFor="menu-item-category"
+                  className="mb-1 block text-sm font-medium text-[hsl(25,35%,25%)]"
+                >
                   Category <span className="text-red-500">*</span>
                 </label>
                 <select
+                  id="menu-item-category"
                   required
                   value={formData.category_id}
                   onChange={(e) =>
@@ -314,6 +318,7 @@ export function ManagerMenuItemModal({
                     }))
                   }
                   className="w-full rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)]"
+                  aria-label="Category"
                 >
                   <option value="">Select a category</option>
                   {categories.map((cat) => (
@@ -410,6 +415,8 @@ export function ManagerMenuItemModal({
                     onChange={handleImageUpload}
                     disabled={uploadingImage}
                     className="w-full rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)] disabled:opacity-50"
+                    aria-label="Upload image file"
+                    title="Upload image file"
                   />
                   {uploadingImage && (
                     <p className="text-xs text-[hsl(25,35%,45%)]">
@@ -429,11 +436,13 @@ export function ManagerMenuItemModal({
                     placeholder="Or enter image URL"
                   />
                   {formData.image_url && (
-                    <div className="mt-2">
-                      <img
+                    <div className="relative mt-2 h-32 w-32">
+                      <Image
                         src={formData.image_url}
                         alt="Preview"
-                        className="h-32 w-32 rounded-md object-cover"
+                        fill
+                        className="rounded-md object-cover"
+                        unoptimized
                       />
                     </div>
                   )}
@@ -525,112 +534,137 @@ export function ManagerMenuItemModal({
                 </label>
               </div>
 
-              {/* Inventory Management */}
-              <div className="space-y-4 border-t pt-4">
-                <h3 className="text-lg font-semibold text-[hsl(25,35%,25%)]">
-                  Inventory Management
-                </h3>
-
-                {/* Track Inventory */}
-                <div>
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={formData.track_inventory}
-                      onChange={(e) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          track_inventory: e.target.checked,
-                        }))
-                      }
-                      className="mr-2"
-                    />
-                    <span className="text-sm font-medium text-[hsl(25,35%,25%)]">
-                      Track Inventory
-                    </span>
-                  </label>
-                  <p className="mt-1 text-xs text-[hsl(25,35%,45%)]">
-                    Enable inventory tracking for this item (e.g., retail
-                    products)
-                  </p>
-                </div>
-
-                {formData.track_inventory && (
-                  <>
-                    {/* Stock Quantity */}
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-[hsl(25,35%,25%)]">
-                        Stock Quantity
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={formData.stock_quantity ?? ""}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            stock_quantity: e.target.value
-                              ? parseInt(e.target.value, 10)
-                              : null,
-                          }))
-                        }
-                        className="w-full rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)]"
-                        placeholder="0"
-                      />
-                    </div>
-
-                    {/* Low Stock Threshold */}
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-[hsl(25,35%,25%)]">
-                        Low Stock Threshold
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={formData.low_stock_threshold ?? ""}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            low_stock_threshold: e.target.value
-                              ? parseInt(e.target.value, 10)
-                              : null,
-                          }))
-                        }
-                        className="w-full rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)]"
-                        placeholder="10"
-                      />
-                      <p className="mt-1 text-xs text-[hsl(25,35%,45%)]">
-                        Alert when stock falls below this quantity
+              {/* Inventory: for drinks/coffee use ingredients; for retail (e.g. muffins) use per-item */}
+              {(() => {
+                const currentCategory = categories.find(
+                  (c) => c.id === formData.category_id
+                );
+                const isDrinksCategory =
+                  currentCategory &&
+                  (currentCategory.slug === "drinks" ||
+                    currentCategory.slug === "coffee" ||
+                    currentCategory.name.toLowerCase().includes("drink") ||
+                    currentCategory.name.toLowerCase().includes("coffee"));
+                if (isDrinksCategory) {
+                  return (
+                    <div className="space-y-2 border-t pt-4">
+                      <h3 className="text-lg font-semibold text-[hsl(25,35%,25%)]">
+                        Inventory
+                      </h3>
+                      <p className="text-sm text-[hsl(25,35%,45%)]">
+                        Stock for drinks is tracked per ingredient (beans,
+                        milk). Adjust quantities and view the audit log in{" "}
+                        <Link
+                          href="/manager/ingredients"
+                          className="font-medium text-[hsl(25,35%,25%)] underline hover:no-underline"
+                        >
+                          Ingredients
+                        </Link>
+                        .
                       </p>
                     </div>
-
-                    {/* Reorder Quantity */}
+                  );
+                }
+                return (
+                  <div className="space-y-4 border-t pt-4">
+                    <h3 className="text-lg font-semibold text-[hsl(25,35%,25%)]">
+                      Inventory Management
+                    </h3>
                     <div>
-                      <label className="mb-1 block text-sm font-medium text-[hsl(25,35%,25%)]">
-                        Reorder Quantity
+                      <label className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={formData.track_inventory}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              track_inventory: e.target.checked,
+                            }))
+                          }
+                          className="mr-2"
+                        />
+                        <span className="text-sm font-medium text-[hsl(25,35%,25%)]">
+                          Track Inventory
+                        </span>
                       </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={formData.reorder_quantity ?? ""}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            reorder_quantity: e.target.value
-                              ? parseInt(e.target.value, 10)
-                              : null,
-                          }))
-                        }
-                        className="w-full rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)]"
-                        placeholder="50"
-                      />
                       <p className="mt-1 text-xs text-[hsl(25,35%,45%)]">
-                        Suggested quantity to reorder when stock is low
+                        Enable inventory tracking for this item (e.g., retail
+                        products)
                       </p>
                     </div>
-                  </>
-                )}
-              </div>
+                    {formData.track_inventory && (
+                      <>
+                        <div>
+                          <label className="mb-1 block text-sm font-medium text-[hsl(25,35%,25%)]">
+                            Stock Quantity
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={formData.stock_quantity ?? ""}
+                            onChange={(e) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                stock_quantity: e.target.value
+                                  ? parseInt(e.target.value, 10)
+                                  : null,
+                              }))
+                            }
+                            className="w-full rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)]"
+                            placeholder="0"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-sm font-medium text-[hsl(25,35%,25%)]">
+                            Low Stock Threshold
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={formData.low_stock_threshold ?? ""}
+                            onChange={(e) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                low_stock_threshold: e.target.value
+                                  ? parseInt(e.target.value, 10)
+                                  : null,
+                              }))
+                            }
+                            className="w-full rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)]"
+                            placeholder="10"
+                          />
+                          <p className="mt-1 text-xs text-[hsl(25,35%,45%)]">
+                            Alert when stock falls below this quantity
+                          </p>
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-sm font-medium text-[hsl(25,35%,25%)]">
+                            Reorder Quantity
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={formData.reorder_quantity ?? ""}
+                            onChange={(e) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                reorder_quantity: e.target.value
+                                  ? parseInt(e.target.value, 10)
+                                  : null,
+                              }))
+                            }
+                            className="w-full rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)]"
+                            placeholder="50"
+                          />
+                          <p className="mt-1 text-xs text-[hsl(25,35%,45%)]">
+                            Suggested quantity to reorder when stock is low
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Ingredients / Recipe */}
               <div className="space-y-4 border-t pt-4">
@@ -678,6 +712,7 @@ export function ManagerMenuItemModal({
                               setRecipeRows(updated);
                             }}
                             className="flex-1 rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)]"
+                            aria-label={`Select ingredient for recipe row ${idx + 1}`}
                           >
                             <option value="">Select ingredient</option>
                             {ingredientOptions.map((ing) => (

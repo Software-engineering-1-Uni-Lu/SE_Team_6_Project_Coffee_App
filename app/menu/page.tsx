@@ -10,6 +10,10 @@ import Image from "next/image";
 import { createClient } from "@/src/integrations/supabase/client";
 import type { MenuItem, Category } from "@/src/types/menu";
 import { useCart } from "@/src/hooks/use-cart";
+import {
+  computeOutOfStockItemIds,
+  enrichItemsWithSoldOut,
+} from "@/src/lib/menu-availability";
 import { toast } from "sonner";
 
 export default function MenuPage() {
@@ -51,18 +55,17 @@ export default function MenuPage() {
           .from("item_ingredients")
           .select("item_id, quantity_needed, beans(stock_quantity)");
 
-        const outOfStockIds = new Set<string>();
-        for (const row of recipeData || []) {
-          const stock = (row as any).beans?.stock_quantity ?? 0;
-          if (stock < row.quantity_needed) {
-            outOfStockIds.add(row.item_id);
-          }
-        }
-
-        const enrichedItems = (itemsData || []).map((item: any) => ({
-          ...item,
-          sold_out: item.sold_out || outOfStockIds.has(item.id),
-        }));
+        const outOfStockIds = computeOutOfStockItemIds(
+          (recipeData || []) as {
+            item_id: string;
+            quantity_needed: number;
+            beans?: { stock_quantity: number } | null;
+          }[]
+        );
+        const enrichedItems = enrichItemsWithSoldOut(
+          itemsData || [],
+          outOfStockIds
+        );
 
         setCategories(categoriesData || []);
         setItems(enrichedItems);

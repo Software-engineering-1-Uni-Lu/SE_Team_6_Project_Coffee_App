@@ -2,9 +2,10 @@
  * PATCH /api/manager/ingredients/[id]/stock
  *
  * PURPOSE:
- * Update stock quantity for an item (ingredient) with audit trail logging.
+ * Update stock quantity for an ingredient (bean) with audit trail logging.
+ * [id] is the bean (ingredient) id. Stock is tracked per ingredient, not per menu item.
  * Only managers and admins can modify stock.
- * Part of CSA-214: Modify In-Stock Quantity
+ * Part of CSA-214: Modify In-Stock Quantity (aligned with ingredients/recipes model)
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -119,23 +120,25 @@ export async function PATCH(
       );
     }
 
-    // Get current item to retrieve old stock quantity
-    const { data: currentItem, error: itemError } = await supabase
-      .from("items")
+    // Get current ingredient (bean) to retrieve old stock quantity
+    const { data: currentBean, error: beanError } = await supabase
+      .from("beans")
       .select("id, stock_quantity, name")
       .eq("id", id)
       .single();
 
-    if (itemError || !currentItem) {
-      return NextResponse.json({ error: "Item not found" }, { status: 404 });
+    if (beanError || !currentBean) {
+      return NextResponse.json(
+        { error: "Ingredient not found" },
+        { status: 404 }
+      );
     }
 
-    const oldQuantity = currentItem.stock_quantity || 0;
+    const oldQuantity = Number(currentBean.stock_quantity) || 0;
 
-    // Update stock quantity in a transaction
-    // First, update the item
-    const { data: updatedItem, error: updateError } = await supabase
-      .from("items")
+    // Update stock quantity on the ingredient (bean)
+    const { data: updatedBean, error: updateError } = await supabase
+      .from("beans")
       .update({
         stock_quantity: quantity,
         updated_at: new Date().toISOString(),
@@ -145,18 +148,18 @@ export async function PATCH(
       .single();
 
     if (updateError) {
-      console.error("Error updating item stock:", updateError);
+      console.error("Error updating ingredient stock:", updateError);
       return NextResponse.json(
         { error: updateError.message || "Failed to update stock" },
         { status: 500 }
       );
     }
 
-    // Create audit log entry
+    // Create audit log entry (bean_stock_audit_log)
     const { data: auditLog, error: auditError } = await supabase
-      .from("stock_audit_log")
+      .from("bean_stock_audit_log")
       .insert({
-        item_id: id,
+        bean_id: id,
         user_id: user.id,
         old_quantity: oldQuantity,
         new_quantity: quantity,
@@ -173,7 +176,7 @@ export async function PATCH(
       return NextResponse.json(
         {
           success: true,
-          updated_ingredient: updatedItem,
+          updated_ingredient: updatedBean,
           warning: "Stock updated but audit log creation failed",
           error: auditError.message,
         },
@@ -184,7 +187,7 @@ export async function PATCH(
     return NextResponse.json(
       {
         success: true,
-        updated_ingredient: updatedItem,
+        updated_ingredient: updatedBean,
         audit_log_id: auditLog.id,
       },
       { status: 200 }

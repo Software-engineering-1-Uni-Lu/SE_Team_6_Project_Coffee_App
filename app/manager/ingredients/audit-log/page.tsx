@@ -5,14 +5,14 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/src/integrations/supabase/client";
 
 interface AuditLogEntry {
   id: string;
-  item_id: string;
-  item_name: string | null;
+  ingredient_id: string;
+  ingredient_name: string | null;
   user_id: string;
   user_name: string | null;
   old_quantity: number;
@@ -53,30 +53,7 @@ export default function AuditLogPage() {
     fetchIngredients();
   }, []);
 
-  useEffect(() => {
-    fetchAuditLog();
-  }, [currentPage, filters]);
-
-  const fetchIngredients = async () => {
-    try {
-      setLoadingIngredients(true);
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from("items")
-        .select("id, name")
-        .order("name");
-
-      if (error) throw error;
-      setIngredients(data || []);
-    } catch (error: any) {
-      console.error("Error fetching ingredients:", error);
-      toast.error("Failed to load ingredients");
-    } finally {
-      setLoadingIngredients(false);
-    }
-  };
-
-  const fetchAuditLog = async () => {
+  const fetchAuditLog = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -117,6 +94,29 @@ export default function AuditLogPage() {
       toast.error(error.message || "Failed to load audit log");
     } finally {
       setLoading(false);
+    }
+  }, [currentPage, filters]);
+
+  useEffect(() => {
+    fetchAuditLog();
+  }, [fetchAuditLog]);
+
+  const fetchIngredients = async () => {
+    try {
+      setLoadingIngredients(true);
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("beans")
+        .select("id, name")
+        .order("name");
+
+      if (error) throw error;
+      setIngredients(data || []);
+    } catch (error: any) {
+      console.error("Error fetching ingredients:", error);
+      toast.error("Failed to load ingredients");
+    } finally {
+      setLoadingIngredients(false);
     }
   };
 
@@ -347,7 +347,8 @@ export default function AuditLogPage() {
                         {formatDate(entry.created_at)}
                       </td>
                       <td className="px-4 py-3 text-sm text-[hsl(25,35%,25%)]">
-                        {entry.item_name || entry.item_id.slice(0, 8)}
+                        {entry.ingredient_name ||
+                          entry.ingredient_id.slice(0, 8)}
                       </td>
                       <td className="px-4 py-3 text-sm text-[hsl(25,35%,45%)]">
                         {entry.user_name || entry.user_id.slice(0, 8)}

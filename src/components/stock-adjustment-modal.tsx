@@ -26,6 +26,8 @@ interface StockAdjustmentModalProps {
     name: string;
     stock_quantity: number | null;
     low_stock_threshold: number | null;
+    /** Unit for display (e.g. g, ml, pcs). Coffees use beans (g) and milk (ml); countable items use pcs. */
+    unit?: string;
   } | null;
 }
 
@@ -154,7 +156,7 @@ export function StockAdjustmentModal({
 
         <div className="mb-4">
           <p className="text-sm font-medium text-[hsl(25,35%,25%)]">
-            Item: <span className="font-normal">{item.name}</span>
+            Ingredient: <span className="font-normal">{item.name}</span>
           </p>
           <p className="mt-1 text-sm text-[hsl(25,35%,45%)]">
             Current Stock:{" "}
@@ -163,12 +165,12 @@ export function StockAdjustmentModal({
                 isLowStock ? "text-red-600" : "text-[hsl(25,35%,25%)]"
               }`}
             >
-              {currentStock}
+              {currentStock} {item.unit ?? ""}
             </span>
             {item.low_stock_threshold !== null && (
               <span className="text-[hsl(25,35%,45%)]">
                 {" "}
-                (Threshold: {item.low_stock_threshold})
+                (Threshold: {item.low_stock_threshold} {item.unit ?? ""})
               </span>
             )}
           </p>
@@ -180,7 +182,7 @@ export function StockAdjustmentModal({
               htmlFor="new_quantity"
               className="mb-2 block text-sm font-medium text-[hsl(25,35%,25%)]"
             >
-              New Quantity *
+              New Quantity {item.unit ? `(${item.unit})` : ""} *
             </label>
             <input
               type="number"

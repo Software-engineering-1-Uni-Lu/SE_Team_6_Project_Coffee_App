@@ -38,14 +38,14 @@ describe("POST /api/manager/ingredients/bulk-import", () => {
   let mockSupabaseClient: any;
   const { createServerClient } = require("@supabase/ssr");
 
-  const mockItem1 = {
-    id: "item-1",
+  const mockBean1 = {
+    id: "bean-1",
     name: "Whole Milk 2%",
     stock_quantity: 1000,
   };
 
-  const mockItem2 = {
-    id: "item-2",
+  const mockBean2 = {
+    id: "bean-2",
     name: "Espresso Beans",
     stock_quantity: 500,
   };
@@ -74,7 +74,7 @@ describe("POST /api/manager/ingredients/bulk-import", () => {
               text: jest
                 .fn()
                 .mockResolvedValue(
-                  "ingredient_id,new_quantity,reason\nitem-1,100,Restock"
+                  "ingredient_id,new_quantity,reason\nbean-1,100,Restock"
                 ),
             };
           }
@@ -126,7 +126,7 @@ describe("POST /api/manager/ingredients/bulk-import", () => {
               text: jest
                 .fn()
                 .mockResolvedValue(
-                  "ingredient_id,new_quantity,reason\nitem-1,100,Restock"
+                  "ingredient_id,new_quantity,reason\nbean-1,100,Restock"
                 ),
             };
           }
@@ -300,9 +300,8 @@ describe("POST /api/manager/ingredients/bulk-import", () => {
     });
 
     it("should validate missing required fields", async () => {
-      // Mock items query to return valid item
-      const itemsMap: Record<string, any> = {
-        "item-1": mockItem1,
+      const beansMap: Record<string, any> = {
+        "bean-1": mockBean1,
       };
 
       mockSupabaseClient.from.mockImplementation((table: string) => {
@@ -317,8 +316,8 @@ describe("POST /api/manager/ingredients/bulk-import", () => {
             data: { role: "manager" },
             error: null,
           });
-        } else if (table === "items") {
-          let capturedItemId: string | null = null;
+        } else if (table === "beans") {
+          let capturedBeanId: string | null = null;
           let selectedColumns: string[] = [];
 
           mockFrom.select.mockImplementation((columns: string | string[]) => {
@@ -328,31 +327,31 @@ describe("POST /api/manager/ingredients/bulk-import", () => {
 
           mockFrom.eq.mockImplementation((column: string, value: string) => {
             if (column === "id") {
-              capturedItemId = value;
+              capturedBeanId = value;
             }
             return mockFrom;
           });
 
           mockFrom.single.mockImplementation(() => {
-            const item = itemsMap[capturedItemId || ""];
-            if (!item) {
+            const bean = beansMap[capturedBeanId || ""];
+            if (!bean) {
               return Promise.resolve({
                 data: null,
-                error: { message: "Item not found" },
+                error: { message: "Ingredient not found" },
               });
             }
 
-            let data: any = item;
+            let data: any = bean;
             if (selectedColumns.length > 0 && !selectedColumns.includes("*")) {
               data = {};
               selectedColumns.forEach((col) => {
-                if (item[col] !== undefined) {
-                  data[col] = item[col];
+                if (bean[col] !== undefined) {
+                  data[col] = bean[col];
                 }
               });
             }
 
-            capturedItemId = null;
+            capturedBeanId = null;
             selectedColumns = [];
             return Promise.resolve({
               data,
@@ -373,7 +372,7 @@ describe("POST /api/manager/ingredients/bulk-import", () => {
               size: 100,
               text: jest
                 .fn()
-                .mockResolvedValue("ingredient_id,new_quantity\nitem-1,100"),
+                .mockResolvedValue("ingredient_id,new_quantity\nbean-1,100"),
             };
           }
           if (name === "mode") {
@@ -406,9 +405,9 @@ describe("POST /api/manager/ingredients/bulk-import", () => {
 
   describe("Successful Import", () => {
     beforeEach(() => {
-      const itemsMap: Record<string, any> = {
-        "item-1": mockItem1,
-        "item-2": mockItem2,
+      const beansMap: Record<string, any> = {
+        "bean-1": mockBean1,
+        "bean-2": mockBean2,
       };
 
       mockSupabaseClient.from.mockImplementation((table: string) => {
@@ -425,9 +424,8 @@ describe("POST /api/manager/ingredients/bulk-import", () => {
             data: { role: "manager" },
             error: null,
           });
-        } else if (table === "items") {
-          // Track the item ID and selected columns from eq() and select() calls
-          let capturedItemId: string | null = null;
+        } else if (table === "beans") {
+          let capturedBeanId: string | null = null;
           let selectedColumns: string[] = [];
 
           mockFrom.select.mockImplementation((columns: string | string[]) => {
@@ -437,42 +435,39 @@ describe("POST /api/manager/ingredients/bulk-import", () => {
 
           mockFrom.eq.mockImplementation((column: string, value: string) => {
             if (column === "id") {
-              capturedItemId = value;
+              capturedBeanId = value;
             }
             return mockFrom;
           });
 
           mockFrom.single.mockImplementation(() => {
-            const item = itemsMap[capturedItemId || ""];
-            capturedItemId = null; // Reset
+            const bean = beansMap[capturedBeanId || ""];
+            capturedBeanId = null;
 
-            if (!item) {
+            if (!bean) {
               return Promise.resolve({
                 data: null,
-                error: { message: "Item not found" },
+                error: { message: "Ingredient not found" },
               });
             }
 
-            // Return only selected columns, or full item if no specific selection
-            let data: any = item;
+            let data: any = bean;
             if (selectedColumns.length > 0 && !selectedColumns.includes("*")) {
               data = {};
               selectedColumns.forEach((col) => {
-                if (item[col] !== undefined) {
-                  data[col] = item[col];
+                if (bean[col] !== undefined) {
+                  data[col] = bean[col];
                 }
               });
             }
 
-            selectedColumns = []; // Reset
+            selectedColumns = [];
             return Promise.resolve({
               data,
               error: null,
             });
           });
 
-          // update().eq() should return a promise with { error }
-          // Create a separate mock chain for update operations
           const updateChain = {
             eq: jest.fn().mockResolvedValue({
               data: null,
@@ -480,7 +475,7 @@ describe("POST /api/manager/ingredients/bulk-import", () => {
             }),
           };
           mockFrom.update = jest.fn().mockReturnValue(updateChain);
-        } else if (table === "stock_audit_log") {
+        } else if (table === "bean_stock_audit_log") {
           mockFrom.insert.mockResolvedValue({
             data: [{ id: "audit-123" }],
             error: null,
@@ -492,13 +487,11 @@ describe("POST /api/manager/ingredients/bulk-import", () => {
     });
 
     it("should successfully import valid CSV rows", async () => {
-      // Reset mocks for this test
-      const itemsMap: Record<string, any> = {
-        "item-1": mockItem1,
-        "item-2": mockItem2,
+      const beansMap: Record<string, any> = {
+        "bean-1": mockBean1,
+        "bean-2": mockBean2,
       };
 
-      let itemQueryCount = 0;
       mockSupabaseClient.from.mockImplementation((table: string) => {
         const mockFrom: any = {
           select: jest.fn().mockReturnThis(),
@@ -513,30 +506,29 @@ describe("POST /api/manager/ingredients/bulk-import", () => {
             data: { role: "manager" },
             error: null,
           });
-        } else if (table === "items") {
-          let capturedItemId: string | null = null;
+        } else if (table === "beans") {
+          let capturedBeanId: string | null = null;
           mockFrom.eq = jest.fn((column: string, value: string) => {
             if (column === "id") {
-              capturedItemId = value;
+              capturedBeanId = value;
             }
             return mockFrom;
           });
           mockFrom.single = jest.fn(() => {
-            const item = itemsMap[capturedItemId || ""];
-            capturedItemId = null;
+            const bean = beansMap[capturedBeanId || ""];
+            capturedBeanId = null;
             return Promise.resolve({
-              data: item || null,
-              error: item ? null : { message: "Item not found" },
+              data: bean || null,
+              error: bean ? null : { message: "Ingredient not found" },
             });
           });
-          // Update doesn't return data, just error
           mockFrom.update = jest.fn().mockReturnValue({
             eq: jest.fn().mockResolvedValue({
               data: null,
               error: null,
             }),
           });
-        } else if (table === "stock_audit_log") {
+        } else if (table === "bean_stock_audit_log") {
           mockFrom.insert = jest.fn().mockReturnValue({
             select: jest.fn().mockReturnThis(),
             single: jest.fn().mockResolvedValue({
@@ -550,8 +542,8 @@ describe("POST /api/manager/ingredients/bulk-import", () => {
       });
 
       const csvContent = `ingredient_id,new_quantity,reason,note
-item-1,1500,Restock,Weekly delivery
-item-2,600,Waste,Spoiled batch`;
+bean-1,1500,Restock,Weekly delivery
+bean-2,600,Waste,Spoiled batch`;
 
       const mockFormData = {
         get: jest.fn((name: string) => {
@@ -591,9 +583,9 @@ item-2,600,Waste,Spoiled batch`;
 
     it("should handle partial mode with some invalid rows", async () => {
       const csvContent = `ingredient_id,new_quantity,reason
-item-1,1500,Restock
+bean-1,1500,Restock
 invalid-id,100,Restock
-item-2,-50,Waste`;
+bean-2,-50,Waste`;
 
       const mockFormData = {
         get: jest.fn((name: string) => {
@@ -633,7 +625,7 @@ item-2,-50,Waste`;
 
     it("should reject all rows in all-or-nothing mode when any row is invalid", async () => {
       const csvContent = `ingredient_id,new_quantity,reason
-item-1,1500,Restock
+bean-1,1500,Restock
 invalid-id,100,Restock`;
 
       const mockFormData = {
@@ -699,12 +691,11 @@ invalid-id,100,Restock`;
             data: { role: "manager" },
             error: null,
           });
-        } else if (table === "items") {
+        } else if (table === "beans") {
           mockFrom.single.mockResolvedValue({
-            data: mockItem1,
+            data: mockBean1,
             error: null,
           });
-          // update().eq() should return a promise with error
           const updateChain = {
             eq: jest.fn().mockResolvedValue({
               data: null,
@@ -718,7 +709,7 @@ invalid-id,100,Restock`;
       });
 
       const csvContent = `ingredient_id,new_quantity,reason
-item-1,1500,Restock`;
+bean-1,1500,Restock`;
 
       const mockFormData = {
         get: jest.fn((name: string) => {
