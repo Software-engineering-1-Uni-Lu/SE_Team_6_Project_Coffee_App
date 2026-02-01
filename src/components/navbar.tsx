@@ -100,6 +100,12 @@ export function Navbar({ onCartOpen }: NavbarProps) {
                       Menu Management
                     </Link>
                     <Link
+                      href="/manager/ingredients"
+                      className="block px-4 py-2 text-sm text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,95%)]"
+                    >
+                      Ingredients
+                    </Link>
+                    <Link
                       href="/manager/ingredients/bulk-import"
                       className="block px-4 py-2 text-sm text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,95%)]"
                     >
