@@ -47,22 +47,27 @@ export async function GET(request: NextRequest) {
     }
 
     // Check ingredient stock: mark items as out_of_stock if any linked ingredient has insufficient stock
-    const { data: recipeData } = await supabase
-      .from("item_ingredients")
-      .select("item_id, quantity_needed, beans(stock_quantity)");
+    let outOfStockItemIds = new Set<string>();
+    try {
+      const { data: recipeData } = await supabase
+        .from("item_ingredients")
+        .select("item_id, quantity_needed, beans(stock_quantity)");
 
-    const outOfStockItemIds = new Set<string>();
-    for (const row of (recipeData || []) as any[]) {
-      const stock = row.beans?.stock_quantity ?? 0;
-      if (stock < row.quantity_needed) {
-        outOfStockItemIds.add(row.item_id);
+      for (const row of (recipeData || []) as any[]) {
+        const stock = row.beans?.stock_quantity ?? 0;
+        if (stock < row.quantity_needed) {
+          outOfStockItemIds.add(row.item_id);
+        }
       }
+    } catch {
+      // item_ingredients table may not exist yet; skip stock check
     }
 
-    const enrichedItems = (items || []).map((item: any) => ({
-      ...item,
-      out_of_stock_ingredients: outOfStockItemIds.has(item.id),
-    }));
+    const enrichedItems = (items || []).map((item: any) =>
+      outOfStockItemIds.has(item.id)
+        ? { ...item, out_of_stock_ingredients: true }
+        : item
+    );
 
     return NextResponse.json({ items: enrichedItems }, { status: 200 });
   } catch (error: any) {
