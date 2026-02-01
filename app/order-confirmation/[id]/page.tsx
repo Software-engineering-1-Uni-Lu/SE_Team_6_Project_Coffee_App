@@ -434,7 +434,7 @@ export default function OrderConfirmationPage() {
                 </button>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
               <div>
                 <span className="font-medium text-[hsl(25,20%,40%)]">
                   Order Number:
@@ -460,6 +460,18 @@ export default function OrderConfirmationPage() {
                 <p className="font-semibold text-[hsl(25,75%,47%)]">
                   {formatStatus(order.status)}
                 </p>
+              </div>
+              <div>
+                <span className="font-medium text-[hsl(25,20%,40%)]">
+                  Customer Name:
+                </span>
+                <p className="text-[hsl(25,35%,25%)]">{getCustomerName()}</p>
+              </div>
+              <div>
+                <span className="font-medium text-[hsl(25,20%,40%)]">
+                  Contact Email:
+                </span>
+                <p className="text-[hsl(25,35%,25%)]">{getCustomerEmail()}</p>
               </div>
               <div>
                 <span className="font-medium text-[hsl(25,20%,40%)]">

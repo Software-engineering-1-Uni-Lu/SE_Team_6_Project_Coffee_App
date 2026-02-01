@@ -161,9 +161,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Prepare order data
-    // CRITICAL: Set guest fields correctly based on authentication status
-    // For authenticated users: use customer_id, set guest fields to null
-    // For guest orders: set customer_id to null, use guest fields
+    // CRITICAL: guest_name and guest_email are now used for ALL orders to store contact info
+    // - For guest orders: customer_id is null, guest fields store the guest's info
+    // - For authenticated orders: customer_id is set, guest fields store custom contact info (e.g., ordering for a friend)
     const orderData: {
       customer_id: string | null;
       guest_name: string | null;
@@ -178,8 +178,8 @@ export async function POST(request: NextRequest) {
       pickup_time: string | null;
     } = {
       customer_id: user ? user.id : null,
-      guest_name: user ? null : guest_name?.trim() || null,
-      guest_email: user ? null : guest_email?.trim() || null,
+      guest_name: guest_name?.trim() || null,
+      guest_email: guest_email?.trim() || null,
       status: "pending",
       items,
       subtotal_cents,
