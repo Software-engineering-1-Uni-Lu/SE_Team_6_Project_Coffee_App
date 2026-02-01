@@ -27,9 +27,13 @@ import { cookies } from "next/headers";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, password } = body;
+    const { name, email, password } = body;
 
     // Validate input
+    if (!name || !name.trim()) {
+      return NextResponse.json({ error: "Name is required" }, { status: 400 });
+    }
+
     if (!email || !password) {
       return NextResponse.json(
         { error: "Email and password are required" },
@@ -64,10 +68,15 @@ export async function POST(request: NextRequest) {
 
     // Create user with Supabase Auth
     // Database trigger will automatically assign "customer" role
-    // No need to pass role in metadata - trigger handles it!
+    // We also store the name in user_metadata for easy access
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: {
+          full_name: name.trim(),
+        },
+      },
     });
 
     if (error) {
@@ -79,6 +88,17 @@ export async function POST(request: NextRequest) {
         { error: "Failed to create user" },
         { status: 500 }
       );
+    }
+
+    // Update the profile with the full name
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({ full_name: name.trim() })
+      .eq("id", data.user.id);
+
+    if (profileError) {
+      console.error("Failed to update profile name:", profileError);
+      // Don't fail the registration if profile update fails
     }
 
     return NextResponse.json(

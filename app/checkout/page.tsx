@@ -614,7 +614,8 @@ export default function CheckoutPage() {
                   {!isGuest && user && (
                     <div className="rounded-lg bg-[hsl(35,20%,95%)] p-4">
                       <p className="text-sm font-medium text-[hsl(25,35%,25%)]">
-                        Ordering as: {user.email}
+                        Ordering as:{" "}
+                        {user.user_metadata?.full_name || user.email}
                       </p>
                     </div>
                   )}

@@ -44,7 +44,7 @@ describe("POST /api/auth/register", () => {
   });
 
   describe("Successful Registration", () => {
-    it("should register a new customer with valid credentials", async () => {
+    it("should register a new customer with valid credentials and name", async () => {
       const mockUser = {
         id: "new-user-123",
         email: "newuser@test.com",
@@ -56,11 +56,24 @@ describe("POST /api/auth/register", () => {
         error: null,
       });
 
+      mockSupabaseClient.from.mockReturnValue({
+        update: jest.fn().mockReturnValue({
+          eq: jest.fn().mockResolvedValue({
+            data: null,
+            error: null,
+          }),
+        }),
+      });
+
       const request = createMockRequest(
         "http://localhost:3000/api/auth/register",
         {
           method: "POST",
-          body: { email: "newuser@test.com", password: "SecurePass123!" },
+          body: {
+            name: "John Doe",
+            email: "newuser@test.com",
+            password: "SecurePass123!",
+          },
         }
       );
 
@@ -74,6 +87,11 @@ describe("POST /api/auth/register", () => {
       expect(mockSupabaseClient.auth.signUp).toHaveBeenCalledWith({
         email: "newuser@test.com",
         password: "SecurePass123!",
+        options: {
+          data: {
+            full_name: "John Doe",
+          },
+        },
       });
     });
 
@@ -89,31 +107,87 @@ describe("POST /api/auth/register", () => {
         error: null,
       });
 
+      mockSupabaseClient.from.mockReturnValue({
+        update: jest.fn().mockReturnValue({
+          eq: jest.fn().mockResolvedValue({
+            data: null,
+            error: null,
+          }),
+        }),
+      });
+
       const request = createMockRequest(
         "http://localhost:3000/api/auth/register",
         {
           method: "POST",
-          body: { email: "newuser@test.com", password: "password123" },
+          body: {
+            name: "Test User",
+            email: "newuser@test.com",
+            password: "password123",
+          },
         }
       );
 
       await POST(request);
 
-      // Verify signUp is called without role metadata
+      // Verify signUp is called without role metadata but with full_name
       expect(mockSupabaseClient.auth.signUp).toHaveBeenCalledWith({
         email: "newuser@test.com",
         password: "password123",
+        options: {
+          data: {
+            full_name: "Test User",
+          },
+        },
       });
     });
   });
 
   describe("Input Validation", () => {
+    it("should return 400 when name is missing", async () => {
+      const request = createMockRequest(
+        "http://localhost:3000/api/auth/register",
+        {
+          method: "POST",
+          body: { email: "test@test.com", password: "password123" },
+        }
+      );
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toBe("Name is required");
+      expect(mockSupabaseClient.auth.signUp).not.toHaveBeenCalled();
+    });
+
+    it("should return 400 when name is empty string", async () => {
+      const request = createMockRequest(
+        "http://localhost:3000/api/auth/register",
+        {
+          method: "POST",
+          body: {
+            name: "   ",
+            email: "test@test.com",
+            password: "password123",
+          },
+        }
+      );
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toBe("Name is required");
+      expect(mockSupabaseClient.auth.signUp).not.toHaveBeenCalled();
+    });
+
     it("should return 400 when email is missing", async () => {
       const request = createMockRequest(
         "http://localhost:3000/api/auth/register",
         {
           method: "POST",
-          body: { password: "password123" },
+          body: { name: "John Doe", password: "password123" },
         }
       );
 
@@ -130,7 +204,7 @@ describe("POST /api/auth/register", () => {
         "http://localhost:3000/api/auth/register",
         {
           method: "POST",
-          body: { email: "newuser@test.com" },
+          body: { name: "John Doe", email: "newuser@test.com" },
         }
       );
 
@@ -147,7 +221,7 @@ describe("POST /api/auth/register", () => {
         "http://localhost:3000/api/auth/register",
         {
           method: "POST",
-          body: {},
+          body: { name: "John Doe" },
         }
       );
 
@@ -170,7 +244,11 @@ describe("POST /api/auth/register", () => {
         "http://localhost:3000/api/auth/register",
         {
           method: "POST",
-          body: { email: "existing@test.com", password: "password123" },
+          body: {
+            name: "John Doe",
+            email: "existing@test.com",
+            password: "password123",
+          },
         }
       );
 
@@ -191,7 +269,11 @@ describe("POST /api/auth/register", () => {
         "http://localhost:3000/api/auth/register",
         {
           method: "POST",
-          body: { email: "newuser@test.com", password: "123" },
+          body: {
+            name: "John Doe",
+            email: "newuser@test.com",
+            password: "123",
+          },
         }
       );
 
@@ -212,7 +294,11 @@ describe("POST /api/auth/register", () => {
         "http://localhost:3000/api/auth/register",
         {
           method: "POST",
-          body: { email: "invalid-email", password: "password123" },
+          body: {
+            name: "John Doe",
+            email: "invalid-email",
+            password: "password123",
+          },
         }
       );
 
@@ -235,7 +321,11 @@ describe("POST /api/auth/register", () => {
         "http://localhost:3000/api/auth/register",
         {
           method: "POST",
-          body: { email: "newuser@test.com", password: "password123" },
+          body: {
+            name: "John Doe",
+            email: "newuser@test.com",
+            password: "password123",
+          },
         }
       );
 
@@ -255,7 +345,11 @@ describe("POST /api/auth/register", () => {
         "http://localhost:3000/api/auth/register",
         {
           method: "POST",
-          body: { email: "newuser@test.com", password: "password123" },
+          body: {
+            name: "John Doe",
+            email: "newuser@test.com",
+            password: "password123",
+          },
         }
       );
 
@@ -298,11 +392,24 @@ describe("POST /api/auth/register", () => {
         error: null,
       });
 
+      mockSupabaseClient.from.mockReturnValue({
+        update: jest.fn().mockReturnValue({
+          eq: jest.fn().mockResolvedValue({
+            data: null,
+            error: null,
+          }),
+        }),
+      });
+
       const request = createMockRequest(
         "http://localhost:3000/api/auth/register",
         {
           method: "POST",
-          body: { email: "newuser@test.com", password: "password123" },
+          body: {
+            name: "John Doe",
+            email: "newuser@test.com",
+            password: "password123",
+          },
         }
       );
 
