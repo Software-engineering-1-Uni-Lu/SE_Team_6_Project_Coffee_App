@@ -917,7 +917,7 @@ export default function StaffOrdersPage() {
       </div>
 
       {/* Orders List */}
-      <section id="orders-list" role="tabpanel" aria-label="Orders list">
+      <section id="orders-list" role="region" aria-label="Orders list">
         {sortedOrders.length === 0 ? (
           <div className="rounded-lg border-2 border-dashed border-[hsl(35,20%,85%)] p-12 text-center">
             <div className="mb-4 text-5xl">☕</div>

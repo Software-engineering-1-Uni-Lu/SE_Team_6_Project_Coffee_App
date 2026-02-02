@@ -276,21 +276,20 @@ export async function ManagerDashboardContent() {
       });
     }
 
-    // Fetch low stock items
-    const { data: lowStockItems } = await supabase
-      .from("items")
-      .select("id, name, stock_quantity, low_stock_threshold")
+    // Fetch low stock ingredients (beans)
+    const { data: lowStockBeans } = await supabase
+      .from("beans")
+      .select("id, name, stock_quantity, low_stock_threshold, unit")
       .eq("active", true)
-      .eq("track_inventory", true)
       .not("stock_quantity", "is", null)
       .not("low_stock_threshold", "is", null);
 
     const itemsNeedingRestock =
-      lowStockItems?.filter(
-        (item) =>
-          item.stock_quantity !== null &&
-          item.low_stock_threshold !== null &&
-          item.stock_quantity <= item.low_stock_threshold
+      lowStockBeans?.filter(
+        (ing: { stock_quantity: number; low_stock_threshold: number }) =>
+          ing.stock_quantity != null &&
+          ing.low_stock_threshold != null &&
+          ing.stock_quantity <= ing.low_stock_threshold
       ) || [];
 
     // Calculate most sold items from last 7 days
@@ -697,7 +696,7 @@ export async function ManagerDashboardContent() {
             </div>
           </section>
 
-          {/* Low Stock Items */}
+          {/* Low Stock Ingredients */}
           <section className="overflow-hidden rounded-lg border border-[hsl(35,20%,90%)] bg-white shadow-sm">
             <div className="border-b border-[hsl(35,20%,90%)] p-6">
               <div className="flex items-center justify-between">
@@ -715,35 +714,46 @@ export async function ManagerDashboardContent() {
             <div className="p-6">
               {itemsNeedingRestock.length > 0 ? (
                 <div className="space-y-3">
-                  {itemsNeedingRestock.slice(0, 5).map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between border-b border-[hsl(35,20%,90%)] pb-3 last:border-b-0"
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-[hsl(25,35%,25%)]">
-                          {item.name}
-                        </p>
-                        <p className="text-xs text-[hsl(25,35%,45%)]">
-                          Stock: {item.stock_quantity} (Threshold:{" "}
-                          {item.low_stock_threshold})
-                        </p>
-                      </div>
-                      <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-800">
-                        Low Stock
-                      </span>
-                    </div>
-                  ))}
+                  {itemsNeedingRestock
+                    .slice(0, 5)
+                    .map(
+                      (ing: {
+                        id: string;
+                        name: string;
+                        stock_quantity: number;
+                        low_stock_threshold: number;
+                        unit?: string;
+                      }) => (
+                        <div
+                          key={ing.id}
+                          className="flex items-center justify-between border-b border-[hsl(35,20%,90%)] pb-3 last:border-b-0"
+                        >
+                          <div>
+                            <p className="text-sm font-medium text-[hsl(25,35%,25%)]">
+                              {ing.name}
+                            </p>
+                            <p className="text-xs text-[hsl(25,35%,45%)]">
+                              Stock: {ing.stock_quantity} {ing.unit ?? ""}{" "}
+                              (Threshold: {ing.low_stock_threshold}{" "}
+                              {ing.unit ?? ""})
+                            </p>
+                          </div>
+                          <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-800">
+                            Low Stock
+                          </span>
+                        </div>
+                      )
+                    )}
                   {itemsNeedingRestock.length > 5 && (
                     <p className="text-xs text-[hsl(25,35%,45%)]">
-                      +{itemsNeedingRestock.length - 5} more items need
+                      +{itemsNeedingRestock.length - 5} more ingredients need
                       restocking
                     </p>
                   )}
                 </div>
               ) : (
                 <p className="text-sm text-[hsl(25,35%,45%)]">
-                  All items are well stocked
+                  All ingredients are well stocked
                 </p>
               )}
             </div>

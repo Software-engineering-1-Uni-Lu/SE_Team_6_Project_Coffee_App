@@ -37,16 +37,15 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
   let mockSupabaseClient: any;
   const { createServerClient } = require("@supabase/ssr");
 
-  const mockItem = {
-    id: "item-123",
+  const mockBean = {
+    id: "bean-123",
     name: "Whole Milk 2%",
     stock_quantity: 1000,
-    low_stock_threshold: 500,
   };
 
   const mockAuditLog = {
     id: "audit-123",
-    item_id: "item-123",
+    bean_id: "bean-123",
     user_id: "manager-123",
     old_quantity: 1000,
     new_quantity: 2500,
@@ -69,7 +68,7 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
       createServerClient.mockReturnValue(mockSupabaseClient);
 
       const request = createMockRequest(
-        "http://localhost:3000/api/manager/ingredients/item-123/stock",
+        "http://localhost:3000/api/manager/ingredients/bean-123/stock",
         {
           method: "PATCH",
           body: { new_quantity: 2500, reason: "Restock" },
@@ -77,7 +76,7 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
       );
 
       const response = await PATCH(request, {
-        params: Promise.resolve({ id: "item-123" }),
+        params: Promise.resolve({ id: "bean-123" }),
       });
       const data = await response.json();
 
@@ -104,7 +103,7 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
       mockSupabaseClient.from.mockReturnValue(mockFrom);
 
       const request = createMockRequest(
-        "http://localhost:3000/api/manager/ingredients/item-123/stock",
+        "http://localhost:3000/api/manager/ingredients/bean-123/stock",
         {
           method: "PATCH",
           body: { new_quantity: 2500, reason: "Restock" },
@@ -112,7 +111,7 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
       );
 
       const response = await PATCH(request, {
-        params: Promise.resolve({ id: "item-123" }),
+        params: Promise.resolve({ id: "bean-123" }),
       });
       const data = await response.json();
 
@@ -137,7 +136,7 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
 
     it("should return 400 when new_quantity is missing", async () => {
       const request = createMockRequest(
-        "http://localhost:3000/api/manager/ingredients/item-123/stock",
+        "http://localhost:3000/api/manager/ingredients/bean-123/stock",
         {
           method: "PATCH",
           body: { reason: "Restock" },
@@ -145,7 +144,7 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
       );
 
       const response = await PATCH(request, {
-        params: Promise.resolve({ id: "item-123" }),
+        params: Promise.resolve({ id: "bean-123" }),
       });
       const data = await response.json();
 
@@ -155,7 +154,7 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
 
     it("should return 400 when reason is missing", async () => {
       const request = createMockRequest(
-        "http://localhost:3000/api/manager/ingredients/item-123/stock",
+        "http://localhost:3000/api/manager/ingredients/bean-123/stock",
         {
           method: "PATCH",
           body: { new_quantity: 2500 },
@@ -163,7 +162,7 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
       );
 
       const response = await PATCH(request, {
-        params: Promise.resolve({ id: "item-123" }),
+        params: Promise.resolve({ id: "bean-123" }),
       });
       const data = await response.json();
 
@@ -173,7 +172,7 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
 
     it("should return 400 when reason is invalid", async () => {
       const request = createMockRequest(
-        "http://localhost:3000/api/manager/ingredients/item-123/stock",
+        "http://localhost:3000/api/manager/ingredients/bean-123/stock",
         {
           method: "PATCH",
           body: { new_quantity: 2500, reason: "InvalidReason" },
@@ -181,7 +180,7 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
       );
 
       const response = await PATCH(request, {
-        params: Promise.resolve({ id: "item-123" }),
+        params: Promise.resolve({ id: "bean-123" }),
       });
       const data = await response.json();
 
@@ -191,7 +190,7 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
 
     it("should return 400 when quantity is negative", async () => {
       const request = createMockRequest(
-        "http://localhost:3000/api/manager/ingredients/item-123/stock",
+        "http://localhost:3000/api/manager/ingredients/bean-123/stock",
         {
           method: "PATCH",
           body: { new_quantity: -100, reason: "Restock" },
@@ -199,7 +198,7 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
       );
 
       const response = await PATCH(request, {
-        params: Promise.resolve({ id: "item-123" }),
+        params: Promise.resolve({ id: "bean-123" }),
       });
       const data = await response.json();
 
@@ -210,7 +209,7 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
     it("should return 400 when note exceeds 500 characters", async () => {
       const longNote = "a".repeat(501);
       const request = createMockRequest(
-        "http://localhost:3000/api/manager/ingredients/item-123/stock",
+        "http://localhost:3000/api/manager/ingredients/bean-123/stock",
         {
           method: "PATCH",
           body: {
@@ -222,7 +221,7 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
       );
 
       const response = await PATCH(request, {
-        params: Promise.resolve({ id: "item-123" }),
+        params: Promise.resolve({ id: "bean-123" }),
       });
       const data = await response.json();
 
@@ -232,15 +231,13 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
   });
 
   describe("Successful Stock Update", () => {
-    let itemsCallCount = 0;
+    let beansCallCount = 0;
     let capturedUpdateData: any = null;
 
     beforeEach(() => {
-      // Reset counters for each test
-      itemsCallCount = 0;
+      beansCallCount = 0;
       capturedUpdateData = null;
 
-      // Setup role check
       mockSupabaseClient.from.mockImplementation((table: string): any => {
         const mockFrom: any = {
           select: jest.fn().mockReturnThis(),
@@ -258,29 +255,26 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
             data: { role: "manager" },
             error: null,
           });
-        } else if (table === "items") {
-          // Configure single() to check call count and captured data when called
+        } else if (table === "beans") {
           mockFrom.single.mockImplementation(() => {
-            if (itemsCallCount === 0) {
-              // First call: get current item
-              itemsCallCount++;
+            if (beansCallCount === 0) {
+              beansCallCount++;
               return Promise.resolve({
-                data: mockItem,
+                data: mockBean,
                 error: null,
               });
             } else {
-              // Second call: update item - return the updated value from the update call
               const updatedQuantity =
                 capturedUpdateData?.stock_quantity ?? 2500;
-              itemsCallCount = 0; // Reset for next test
+              beansCallCount = 0;
               capturedUpdateData = null;
               return Promise.resolve({
-                data: { ...mockItem, stock_quantity: updatedQuantity },
+                data: { ...mockBean, stock_quantity: updatedQuantity },
                 error: null,
               });
             }
           });
-        } else if (table === "stock_audit_log") {
+        } else if (table === "bean_stock_audit_log") {
           mockFrom.single.mockResolvedValue({
             data: mockAuditLog,
             error: null,
@@ -293,7 +287,7 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
 
     it("should successfully update stock and create audit log", async () => {
       const request = createMockRequest(
-        "http://localhost:3000/api/manager/ingredients/item-123/stock",
+        "http://localhost:3000/api/manager/ingredients/bean-123/stock",
         {
           method: "PATCH",
           body: {
@@ -305,7 +299,7 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
       );
 
       const response = await PATCH(request, {
-        params: Promise.resolve({ id: "item-123" }),
+        params: Promise.resolve({ id: "bean-123" }),
       });
       const data = await response.json();
 
@@ -320,7 +314,7 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
 
       for (const reason of reasons) {
         const request = createMockRequest(
-          "http://localhost:3000/api/manager/ingredients/item-123/stock",
+          "http://localhost:3000/api/manager/ingredients/bean-123/stock",
           {
             method: "PATCH",
             body: { new_quantity: 2500, reason },
@@ -328,7 +322,7 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
         );
 
         const response = await PATCH(request, {
-          params: Promise.resolve({ id: "item-123" }),
+          params: Promise.resolve({ id: "bean-123" }),
         });
         const data = await response.json();
 
@@ -339,7 +333,7 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
 
     it("should allow zero quantity", async () => {
       const request = createMockRequest(
-        "http://localhost:3000/api/manager/ingredients/item-123/stock",
+        "http://localhost:3000/api/manager/ingredients/bean-123/stock",
         {
           method: "PATCH",
           body: { new_quantity: 0, reason: "Waste" },
@@ -347,7 +341,7 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
       );
 
       const response = await PATCH(request, {
-        params: Promise.resolve({ id: "item-123" }),
+        params: Promise.resolve({ id: "bean-123" }),
       });
       const data = await response.json();
 
@@ -371,8 +365,7 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
       mockSupabaseClient.from.mockReturnValue(mockFrom);
     });
 
-    it("should return 404 when item does not exist", async () => {
-      let callCount = 0;
+    it("should return 404 when ingredient does not exist", async () => {
       mockSupabaseClient.from.mockImplementation((table: string) => {
         const mockFrom = {
           select: jest.fn().mockReturnThis(),
@@ -385,10 +378,10 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
             data: { role: "manager" },
             error: null,
           });
-        } else if (table === "items") {
+        } else if (table === "beans") {
           mockFrom.single.mockResolvedValue({
             data: null,
-            error: { message: "Item not found" },
+            error: { message: "Ingredient not found" },
           });
         }
 
@@ -409,11 +402,11 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
       const data = await response.json();
 
       expect(response.status).toBe(404);
-      expect(data.error).toBe("Item not found");
+      expect(data.error).toBe("Ingredient not found");
     });
 
     it("should handle database update errors", async () => {
-      let callCount = 0;
+      let beansCallCount = 0;
       mockSupabaseClient.from.mockImplementation((table: string) => {
         const mockFrom = {
           select: jest.fn().mockReturnThis(),
@@ -427,28 +420,27 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
             data: { role: "manager" },
             error: null,
           });
-        } else if (table === "items") {
-          if (callCount === 0) {
-            // First call: get current item
-            mockFrom.single.mockResolvedValue({
-              data: mockItem,
-              error: null,
-            });
-            callCount++;
-          } else {
-            // Second call: update item (fails)
-            mockFrom.single.mockResolvedValue({
+        } else if (table === "beans") {
+          mockFrom.single.mockImplementation(() => {
+            beansCallCount++;
+            if (beansCallCount === 1) {
+              return Promise.resolve({
+                data: mockBean,
+                error: null,
+              });
+            }
+            return Promise.resolve({
               data: null,
               error: { message: "Database error" },
             });
-          }
+          });
         }
 
         return mockFrom;
       });
 
       const request = createMockRequest(
-        "http://localhost:3000/api/manager/ingredients/item-123/stock",
+        "http://localhost:3000/api/manager/ingredients/bean-123/stock",
         {
           method: "PATCH",
           body: { new_quantity: 2500, reason: "Restock" },
@@ -456,7 +448,7 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
       );
 
       const response = await PATCH(request, {
-        params: Promise.resolve({ id: "item-123" }),
+        params: Promise.resolve({ id: "bean-123" }),
       });
       const data = await response.json();
 
@@ -465,7 +457,7 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
     });
 
     it("should handle audit log creation failure gracefully", async () => {
-      let callCount = 0;
+      let beansCallCount = 0;
       mockSupabaseClient.from.mockImplementation((table: string) => {
         const mockFrom = {
           select: jest.fn().mockReturnThis(),
@@ -480,20 +472,21 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
             data: { role: "manager" },
             error: null,
           });
-        } else if (table === "items") {
-          if (callCount === 0) {
-            mockFrom.single.mockResolvedValue({
-              data: mockItem,
+        } else if (table === "beans") {
+          mockFrom.single.mockImplementation(() => {
+            beansCallCount++;
+            if (beansCallCount === 1) {
+              return Promise.resolve({
+                data: mockBean,
+                error: null,
+              });
+            }
+            return Promise.resolve({
+              data: { ...mockBean, stock_quantity: 2500 },
               error: null,
             });
-            callCount++;
-          } else {
-            mockFrom.single.mockResolvedValue({
-              data: { ...mockItem, stock_quantity: 2500 },
-              error: null,
-            });
-          }
-        } else if (table === "stock_audit_log") {
+          });
+        } else if (table === "bean_stock_audit_log") {
           mockFrom.single.mockResolvedValue({
             data: null,
             error: { message: "Audit log creation failed" },
@@ -504,7 +497,7 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
       });
 
       const request = createMockRequest(
-        "http://localhost:3000/api/manager/ingredients/item-123/stock",
+        "http://localhost:3000/api/manager/ingredients/bean-123/stock",
         {
           method: "PATCH",
           body: { new_quantity: 2500, reason: "Restock" },
@@ -512,7 +505,7 @@ describe("PATCH /api/manager/ingredients/[id]/stock", () => {
       );
 
       const response = await PATCH(request, {
-        params: Promise.resolve({ id: "item-123" }),
+        params: Promise.resolve({ id: "bean-123" }),
       });
       const data = await response.json();
 

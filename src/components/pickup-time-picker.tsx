@@ -39,11 +39,11 @@ export function PickupTimePicker({
   };
 
   // Get minimum allowed time
-  const getMinTime = (): Date => {
+  const getMinTime = useCallback((): Date => {
     const now = new Date();
     now.setMinutes(now.getMinutes() + minAdvanceMinutes);
     return now;
-  };
+  }, [minAdvanceMinutes]);
 
   // Round time to nearest 15-minute interval
   const roundToQuarter = (date: Date): Date => {
@@ -83,7 +83,7 @@ export function PickupTimePicker({
       setError(null);
       return true;
     },
-    [minAdvanceMinutes]
+    [minAdvanceMinutes, getMinTime]
   );
 
   // Handle quick select button click

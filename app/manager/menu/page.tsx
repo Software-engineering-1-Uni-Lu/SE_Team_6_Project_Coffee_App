@@ -11,7 +11,6 @@ import Link from "next/link";
 import { createClient } from "@/src/integrations/supabase/client";
 import type { MenuItem, Category } from "@/src/types/menu";
 import { ManagerMenuItemModal } from "@/src/components/manager-menu-item-modal";
-import { StockAdjustmentModal } from "@/src/components/stock-adjustment-modal";
 import { formatPrice } from "@/src/lib/cart-utils";
 import { toast } from "sonner";
 
@@ -23,10 +22,6 @@ export default function ManagerMenuPage() {
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
-  const [isStockModalOpen, setIsStockModalOpen] = useState(false);
-  const [stockAdjustingItem, setStockAdjustingItem] = useState<MenuItem | null>(
-    null
-  );
 
   useEffect(() => {
     fetchData();
@@ -103,21 +98,6 @@ export default function ManagerMenuPage() {
     handleModalClose();
   };
 
-  const handleStockAdjust = (item: MenuItem) => {
-    setStockAdjustingItem(item);
-    setIsStockModalOpen(true);
-  };
-
-  const handleStockModalClose = () => {
-    setIsStockModalOpen(false);
-    setStockAdjustingItem(null);
-  };
-
-  const handleStockModalSuccess = () => {
-    fetchData();
-    handleStockModalClose();
-  };
-
   const handleToggleSoldOut = async (item: MenuItem) => {
     try {
       const currentSoldOut = (item as any).sold_out || false;
@@ -176,10 +156,25 @@ export default function ManagerMenuPage() {
               Menu Management
             </h1>
             <p className="mt-2 text-[hsl(25,35%,45%)]">
-              Manage your menu items and categories
+              Manage your menu items and categories. Drink stock (e.g. beans,
+              milk) is managed in{" "}
+              <Link
+                href="/manager/ingredients"
+                className="font-medium text-[hsl(25,35%,25%)] underline hover:no-underline"
+              >
+                Ingredients
+              </Link>{" "}
+              (g, ml); countable items (e.g. muffins) use ingredients with unit
+              &quot;pcs&quot;.
             </p>
           </div>
           <div className="flex gap-3">
+            <Link
+              href="/manager/ingredients"
+              className="rounded-md border border-[hsl(35,20%,90%)] bg-white px-4 py-2 text-[hsl(25,35%,25%)] transition-colors hover:bg-[hsl(35,20%,95%)]"
+            >
+              Ingredients
+            </Link>
             <Link
               href="/manager/ingredients/bulk-import"
               className="rounded-md border border-[hsl(35,20%,90%)] bg-white px-4 py-2 text-[hsl(25,35%,25%)] transition-colors hover:bg-[hsl(35,20%,95%)]"
@@ -319,33 +314,6 @@ export default function ManagerMenuPage() {
                       </div>
                     )}
 
-                    {/* Inventory Status */}
-                    {(item as any).track_inventory && (
-                      <div className="mb-3">
-                        <p className="text-xs text-[hsl(25,35%,45%)]">
-                          Stock:{" "}
-                          <span
-                            className={`font-medium ${
-                              (item as any).stock_quantity !== null &&
-                              (item as any).low_stock_threshold !== null &&
-                              (item as any).stock_quantity <=
-                                (item as any).low_stock_threshold
-                                ? "text-red-600"
-                                : "text-[hsl(25,35%,25%)]"
-                            }`}
-                          >
-                            {(item as any).stock_quantity ?? "N/A"}
-                          </span>
-                          {(item as any).low_stock_threshold !== null && (
-                            <span className="text-[hsl(25,35%,45%)]">
-                              {" "}
-                              (Threshold: {(item as any).low_stock_threshold})
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                    )}
-
                     {/* Actions */}
                     <div className="flex flex-col gap-2">
                       <div className="flex gap-2">
@@ -374,14 +342,6 @@ export default function ManagerMenuPage() {
                           ? "Mark Available"
                           : "Mark Sold Out"}
                       </button>
-                      {(item as any).track_inventory && (
-                        <button
-                          onClick={() => handleStockAdjust(item)}
-                          className="w-full rounded-md border border-[hsl(25,35%,25%)] bg-[hsl(25,35%,25%)] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[hsl(25,40%,15%)]"
-                        >
-                          Adjust Stock
-                        </button>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -397,24 +357,6 @@ export default function ManagerMenuPage() {
         onSuccess={handleModalSuccess}
         item={editingItem}
         categories={categories}
-      />
-
-      <StockAdjustmentModal
-        isOpen={isStockModalOpen}
-        onClose={handleStockModalClose}
-        onSuccess={handleStockModalSuccess}
-        item={
-          stockAdjustingItem
-            ? {
-                id: stockAdjustingItem.id,
-                name: stockAdjustingItem.name,
-                stock_quantity:
-                  (stockAdjustingItem as any).stock_quantity ?? null,
-                low_stock_threshold:
-                  (stockAdjustingItem as any).low_stock_threshold ?? null,
-              }
-            : null
-        }
       />
     </>
   );
