@@ -123,6 +123,12 @@ export function Navbar({ onCartOpen }: NavbarProps) {
                     >
                       Missing Ingredients
                     </Link>
+                    <Link
+                      href="/manager/promotions"
+                      className="block px-4 py-2 text-sm text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,95%)]"
+                    >
+                      Promotions
+                    </Link>
                   </div>
                 </div>
               )}
