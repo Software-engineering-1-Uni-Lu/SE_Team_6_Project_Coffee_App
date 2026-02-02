@@ -261,7 +261,7 @@
  * - [ ] Sound alerts work (with user permission)
  */
 
-// No imports needed - middleware handles all auth
+import Link from "next/link";
 
 /**
  * Staff Dashboard Page (Server Component)
@@ -414,18 +414,30 @@ export default async function StaffDashboardPage() {
                   Quick Actions
                 </h2>
                 <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">
-                    • View Menu (Reference)
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    • Check Inventory
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    • Report Issue
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    • View Shift Notes
-                  </p>
+                  <Link
+                    href="/staff/orders"
+                    className="block rounded-md px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                  >
+                    📋 Manage Orders
+                  </Link>
+                  <Link
+                    href="/staff/menu"
+                    className="block rounded-md px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                  >
+                    📖 View Menu
+                  </Link>
+                  <Link
+                    href="/staff/ingredients"
+                    className="block rounded-md px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                  >
+                    ⚠️ Report Missing Ingredients
+                  </Link>
+                  <Link
+                    href="/auth/profile"
+                    className="block rounded-md px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                  >
+                    👤 My Profile
+                  </Link>
                 </div>
               </div>
             </div>
