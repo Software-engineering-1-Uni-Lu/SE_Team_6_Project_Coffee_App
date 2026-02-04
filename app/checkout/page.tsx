@@ -1019,9 +1019,26 @@ export default function CheckoutPage() {
                             Qty: {item.quantity}
                           </p>
                         </div>
-                        <p className="text-sm font-medium text-[hsl(25,35%,25%)]">
-                          {formatPrice(item.price * item.quantity)}
-                        </p>
+                        <div className="flex flex-col items-end gap-0.5 text-sm">
+                          {item.basePrice != null &&
+                            item.price < item.basePrice && (
+                              <>
+                                <span className="text-xs text-[hsl(25,35%,45%)] line-through">
+                                  {formatPrice(item.basePrice * item.quantity)}
+                                </span>
+                                <span className="text-xs font-medium text-green-700">
+                                  Promotion: -
+                                  {formatPrice(
+                                    (item.basePrice - item.price) *
+                                      item.quantity
+                                  )}
+                                </span>
+                              </>
+                            )}
+                          <p className="font-medium text-[hsl(25,35%,25%)]">
+                            {formatPrice(item.price * item.quantity)}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   ))}
