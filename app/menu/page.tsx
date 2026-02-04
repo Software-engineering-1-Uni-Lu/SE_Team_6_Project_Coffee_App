@@ -1,6 +1,6 @@
 /**
  * Purpose: Public menu page displaying available items for customers to browse.
- * Allows customers to view all menu offerings with search and filtering capabilities.
+ * Allows customers to view all menu offerings with search, filtering, and detailed item views.
  */
 
 "use client";
@@ -21,6 +21,7 @@ import {
   applyPromotionsStacked,
 } from "@/src/lib/promotions";
 import { toast } from "sonner";
+import { MenuItemDetailModal } from "@/src/components/menu-item-detail-modal";
 
 export default function MenuPage() {
   const [items, setItems] = useState<MenuItem[]>([]);
@@ -30,6 +31,9 @@ export default function MenuPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [addingToCart, setAddingToCart] = useState<string | null>(null);
+
+  // Modal State
+  const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
 
   // New state for filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -384,16 +388,19 @@ export default function MenuPage() {
           {filteredItems.map((item) => (
             <article
               key={item.id}
-              className="overflow-hidden rounded-lg border border-[hsl(35,20%,90%)] bg-white shadow-sm transition-shadow hover:shadow-md"
+              className="group overflow-hidden rounded-lg border border-[hsl(35,20%,90%)] bg-white shadow-sm transition-shadow hover:shadow-md"
             >
               {/* Item image */}
-              <div className="relative aspect-[4/3] w-full overflow-hidden bg-[hsl(35,20%,95%)]">
+              <div
+                className="relative aspect-[4/3] w-full cursor-pointer overflow-hidden bg-[hsl(35,20%,95%)]"
+                onClick={() => setSelectedItem(item)}
+              >
                 {item.image_url ? (
                   <Image
                     src={item.image_url}
                     alt={item.name}
                     fill
-                    className="object-cover"
+                    className="object-cover transition-transform duration-300 group-hover:scale-105"
                     sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
                   />
                 ) : (
@@ -406,7 +413,10 @@ export default function MenuPage() {
               {/* Item details */}
               <div className="p-4">
                 <div className="mb-2 flex items-start justify-between gap-2">
-                  <h3 className="text-lg font-semibold text-[hsl(25,35%,25%)]">
+                  <h3
+                    className="cursor-pointer text-lg font-semibold text-[hsl(25,35%,25%)] group-hover:text-[hsl(25,40%,15%)]"
+                    onClick={() => setSelectedItem(item)}
+                  >
                     {item.name}
                   </h3>
                   <div className="flex shrink-0 flex-col items-end">
@@ -516,6 +526,14 @@ export default function MenuPage() {
           ))}
         </section>
       )}
+
+      {/* Detail Modal */}
+      <MenuItemDetailModal
+        isOpen={!!selectedItem}
+        item={selectedItem}
+        onClose={() => setSelectedItem(null)}
+        promotions={promotions}
+      />
     </main>
   );
 }
