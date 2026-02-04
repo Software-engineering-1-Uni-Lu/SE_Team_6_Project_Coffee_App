@@ -641,7 +641,7 @@ export default function OrdersPage() {
                     Guests use order ID + email to find their orders.
                   </p>
                 </div>
-                <span className="rounded-full bg-[hsl(35,20%,96%)] px-3 py-1 text-xs font-semibold text-[hsl(25,35%,30%)]">
+                <span className="whitespace-nowrap rounded-full bg-[hsl(35,20%,96%)] px-2 py-1 text-xs font-semibold text-[hsl(25,35%,30%)]">
                   Guest friendly
                 </span>
               </div>
