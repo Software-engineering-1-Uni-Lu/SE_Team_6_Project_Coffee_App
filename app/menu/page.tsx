@@ -9,16 +9,23 @@ import { useEffect, useState, useMemo } from "react";
 import Image from "next/image";
 import { createClient } from "@/src/integrations/supabase/client";
 import type { MenuItem, Category } from "@/src/types/menu";
+import type { Promotion } from "@/src/types/promotions";
 import { useCart } from "@/src/hooks/use-cart";
 import {
   computeOutOfStockItemIds,
   enrichItemsWithSoldOut,
 } from "@/src/lib/menu-availability";
+import {
+  filterActivePromotionsByTime,
+  promotionsForItem,
+  applyPromotionsStacked,
+} from "@/src/lib/promotions";
 import { toast } from "sonner";
 
 export default function MenuPage() {
   const [items, setItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +38,8 @@ export default function MenuPage() {
   const [excludedAllergens, setExcludedAllergens] = useState<string[]>([]);
 
   const { addItem } = useCart();
+
+  const activePromotions = filterActivePromotionsByTime(promotions);
 
   useEffect(() => {
     async function fetchData() {
@@ -55,6 +64,14 @@ export default function MenuPage() {
           .eq("active", true);
 
         if (itemsError) throw itemsError;
+
+        // Fetch active promotions (everyone can read)
+        const { data: promotionsData } = await supabase
+          .from("promotions")
+          .select("*")
+          .eq("active", true);
+
+        setPromotions((promotionsData as Promotion[]) || []);
 
         // Check which items have insufficient ingredient stock for their recipe
         const { data: recipeData } = await supabase
@@ -160,16 +177,19 @@ export default function MenuPage() {
     return `€${(cents / 100).toFixed(2)}`;
   };
 
-  // Handle add to cart
+  // Handle add to cart: use discounted price from stacked promotions (no modifiers for now)
   const handleAddToCart = async (item: MenuItem) => {
     if (!item.is_available_now || (item as any).sold_out) return;
+
+    const applicable = promotionsForItem(item, activePromotions);
+    const { discounted } = applyPromotionsStacked(item.price_cents, applicable);
 
     setAddingToCart(item.id);
     try {
       await addItem({
         productId: item.id,
         name: item.name,
-        price: item.price_cents,
+        price: discounted,
         basePrice: item.price_cents,
         modifiers: [], // No modifiers for now
         imageUrl: item.image_url,
@@ -385,13 +405,38 @@ export default function MenuPage() {
 
               {/* Item details */}
               <div className="p-4">
-                <div className="mb-2 flex items-start justify-between">
+                <div className="mb-2 flex items-start justify-between gap-2">
                   <h3 className="text-lg font-semibold text-[hsl(25,35%,25%)]">
                     {item.name}
                   </h3>
-                  <span className="text-lg font-bold text-[hsl(25,35%,25%)]">
-                    {formatPrice(item.price_cents)}
-                  </span>
+                  <div className="flex shrink-0 flex-col items-end">
+                    {(() => {
+                      const applicable = promotionsForItem(
+                        item,
+                        activePromotions
+                      );
+                      const { discounted, combinedLabel } =
+                        applyPromotionsStacked(item.price_cents, applicable);
+                      const hasDiscount = discounted < item.price_cents;
+                      return (
+                        <>
+                          {hasDiscount && (
+                            <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                              {combinedLabel}
+                            </span>
+                          )}
+                          <span className="text-lg font-bold text-[hsl(25,35%,25%)]">
+                            {formatPrice(discounted)}
+                          </span>
+                          {hasDiscount && (
+                            <span className="text-sm text-[hsl(25,35%,45%)] line-through">
+                              {formatPrice(item.price_cents)}
+                            </span>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
                 </div>
 
                 {item.description && (
