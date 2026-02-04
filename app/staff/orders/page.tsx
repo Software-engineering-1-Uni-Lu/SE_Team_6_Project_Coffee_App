@@ -13,6 +13,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { createClient } from "@/src/integrations/supabase/client";
 import {
   Order,
@@ -869,14 +870,22 @@ export default function StaffOrdersPage() {
   return (
     <main className="container mx-auto px-4 py-8">
       {/* Header */}
-      <header className="mb-6">
-        <h1 className="text-3xl font-bold text-[hsl(25,35%,25%)]">
-          Orders Queue
-        </h1>
-        <p className="mt-1 text-[hsl(25,35%,55%)]">
-          Manage and process customer orders • Sorted by priority (earliest
-          first)
-        </p>
+      <header className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-[hsl(25,35%,25%)]">
+            Orders Queue
+          </h1>
+          <p className="mt-1 text-[hsl(25,35%,55%)]">
+            Manage and process customer orders • Sorted by priority (earliest
+            first)
+          </p>
+        </div>
+        <Link
+          href="/staff/orders/schedule"
+          className="rounded-md border border-[hsl(35,20%,85%)] bg-white px-4 py-2 text-sm font-medium text-[hsl(25,35%,25%)] transition-colors hover:bg-[hsl(35,20%,95%)]"
+        >
+          📅 View Schedule
+        </Link>
       </header>
 
       {/* Quick Stats */}

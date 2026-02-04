@@ -20,6 +20,7 @@ import { createClient } from "@/src/integrations/supabase/client";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import { PickupTimePicker } from "@/src/components/pickup-time-picker";
+import { OpeningHours } from "@/src/lib/opening-hours";
 
 const TAX_RATE = 0.1; // 10% tax rate
 
@@ -87,6 +88,9 @@ export default function CheckoutPage() {
   >("card");
   const [pickupTime, setPickupTime] = useState<Date | null>(null);
   const [pointsPerEuro, setPointsPerEuro] = useState<number>(10);
+  const [openingHours, setOpeningHours] = useState<OpeningHours | undefined>(
+    undefined
+  );
   const redeemMultiplier = 5;
   const [loyaltyBalance, setLoyaltyBalance] = useState<number>(0);
   const [loyaltyLoading, setLoyaltyLoading] = useState<boolean>(false);
@@ -148,23 +152,25 @@ export default function CheckoutPage() {
   useEffect(() => {
     let isActive = true;
 
-    const fetchPointsRate = async () => {
+    const fetchSettings = async () => {
       try {
         const { data, error } = await supabase
           .from("settings")
-          .select("points_per_euro")
+          .select("points_per_euro, opening_hours")
           .limit(1)
           .single();
 
-        if (!error && data?.points_per_euro && isActive) {
-          setPointsPerEuro(data.points_per_euro);
+        if (!error && data && isActive) {
+          if (data.points_per_euro) setPointsPerEuro(data.points_per_euro);
+          if (data.opening_hours)
+            setOpeningHours(data.opening_hours as unknown as OpeningHours);
         }
       } catch {
         // Use default points ratio when settings fetch fails.
       }
     };
 
-    fetchPointsRate();
+    fetchSettings();
 
     return () => {
       isActive = false;
@@ -960,6 +966,7 @@ export default function CheckoutPage() {
                   onChange={setPickupTime}
                   minAdvanceMinutes={15}
                   disabled={isSubmitting}
+                  openingHours={openingHours}
                 />
               </div>
             </div>

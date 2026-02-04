@@ -9,27 +9,31 @@
  * - Manual time selection via datetime input
  * - Validation:
  *   - Minimum 15 min advance
- *   - Within store hours (8:00 AM - 6:00 PM)
+ *   - Within store hours (dynamic based on props)
  * - Clear button to reset selection
  */
 
 import { useEffect, useState, useCallback } from "react";
+import {
+  isWithinOpeningHours,
+  OpeningHours,
+  getDayName,
+} from "@/src/lib/opening-hours";
 
 interface PickupTimePickerProps {
   value: Date | null;
   onChange: (date: Date | null) => void;
   minAdvanceMinutes?: number;
   disabled?: boolean;
+  openingHours?: OpeningHours;
 }
-
-const STORE_OPEN_HOUR = 8;
-const STORE_CLOSE_HOUR = 18;
 
 export function PickupTimePicker({
   value,
   onChange,
   minAdvanceMinutes = 15,
   disabled = false,
+  openingHours,
 }: PickupTimePickerProps) {
   const [error, setError] = useState<string | null>(null);
 
@@ -61,12 +65,6 @@ export function PickupTimePicker({
     return rounded;
   };
 
-  // Check if time is within store hours
-  const isWithinStoreHours = (date: Date): boolean => {
-    const hours = date.getHours();
-    return hours >= STORE_OPEN_HOUR && hours < STORE_CLOSE_HOUR;
-  };
-
   // Validate selected time
   const validateTime = useCallback(
     (date: Date | null): boolean => {
@@ -91,17 +89,18 @@ export function PickupTimePicker({
         return false;
       }
 
-      if (!isWithinStoreHours(date)) {
-        setError(
-          `Store hours are ${STORE_OPEN_HOUR}:00 AM - ${STORE_CLOSE_HOUR}:00 PM`
-        );
+      if (openingHours && !isWithinOpeningHours(date, openingHours)) {
+        const day = getDayName(date);
+        const hours = openingHours[day];
+        const range = hours ? `${hours.open} - ${hours.close}` : "Closed";
+        setError(`Selected time is outside opening hours (${range})`);
         return false;
       }
 
       setError(null);
       return true;
     },
-    [minAdvanceMinutes, getMinTime]
+    [minAdvanceMinutes, getMinTime, openingHours]
   );
 
   // Handle quick select button click
@@ -110,11 +109,10 @@ export function PickupTimePicker({
     newTime.setMinutes(newTime.getMinutes() + minutes);
     const rounded = roundToQuarter(newTime);
 
-    // If ASAP falls outside hours, still update but show error
     if (validateTime(rounded)) {
       onChange(rounded);
     } else {
-      validateTime(rounded); // Show error
+      validateTime(rounded);
     }
   };
 
@@ -127,7 +125,6 @@ export function PickupTimePicker({
     }
 
     const selectedDate = new Date(e.target.value);
-    // Allow user to pick invalid times so they can see the error message
     onChange(selectedDate);
     validateTime(selectedDate);
   };
@@ -287,8 +284,9 @@ export function PickupTimePicker({
 
       {/* Help Text */}
       <p className="text-sm text-[hsl(25,35%,55%)]">
-        Store hours: {STORE_OPEN_HOUR}:00 AM - {STORE_CLOSE_HOUR}:00 PM. Orders
-        typically take 10-15 minutes to prepare.
+        Orders typically take 10-15 minutes to prepare.
+        {openingHours &&
+          ` We are open ${openingHours[getDayName(new Date())]?.open || "N/A"} - ${openingHours[getDayName(new Date())]?.close || "N/A"}.`}
       </p>
     </div>
   );
