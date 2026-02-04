@@ -7,17 +7,25 @@
  * Features:
  * - Quick select buttons (ASAP, 30 min, 1 hour)
  * - Manual time selection via datetime input
- * - Basic validation (minimum 15 min advance)
+ * - Validation:
+ *   - Minimum 15 min advance
+ *   - Within store hours (dynamic based on props)
  * - Clear button to reset selection
  */
 
 import { useEffect, useState, useCallback } from "react";
+import {
+  isWithinOpeningHours,
+  OpeningHours,
+  getDayName,
+} from "@/src/lib/opening-hours";
 
 interface PickupTimePickerProps {
   value: Date | null;
   onChange: (date: Date | null) => void;
   minAdvanceMinutes?: number;
   disabled?: boolean;
+  openingHours?: OpeningHours;
 }
 
 export function PickupTimePicker({
@@ -25,6 +33,7 @@ export function PickupTimePicker({
   onChange,
   minAdvanceMinutes = 15,
   disabled = false,
+  openingHours,
 }: PickupTimePickerProps) {
   const [error, setError] = useState<string | null>(null);
 
@@ -80,10 +89,18 @@ export function PickupTimePicker({
         return false;
       }
 
+      if (openingHours && !isWithinOpeningHours(date, openingHours)) {
+        const day = getDayName(date);
+        const hours = openingHours[day];
+        const range = hours ? `${hours.open} - ${hours.close}` : "Closed";
+        setError(`Selected time is outside opening hours (${range})`);
+        return false;
+      }
+
       setError(null);
       return true;
     },
-    [minAdvanceMinutes, getMinTime]
+    [minAdvanceMinutes, getMinTime, openingHours]
   );
 
   // Handle quick select button click
@@ -94,6 +111,8 @@ export function PickupTimePicker({
 
     if (validateTime(rounded)) {
       onChange(rounded);
+    } else {
+      validateTime(rounded);
     }
   };
 
@@ -106,9 +125,8 @@ export function PickupTimePicker({
     }
 
     const selectedDate = new Date(e.target.value);
-    if (validateTime(selectedDate)) {
-      onChange(selectedDate);
-    }
+    onChange(selectedDate);
+    validateTime(selectedDate);
   };
 
   // Handle clear button
@@ -222,7 +240,11 @@ export function PickupTimePicker({
           onChange={handleDateTimeChange}
           disabled={disabled}
           min={formatDateTimeLocal(getMinTime())}
-          className="w-full rounded-md border border-[hsl(35,20%,90%)] px-3 py-2 text-[hsl(25,35%,25%)] focus:border-[hsl(25,75%,47%)] focus:outline-none focus:ring-2 focus:ring-[hsl(25,75%,47%)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          className={`w-full rounded-md border px-3 py-2 text-[hsl(25,35%,25%)] focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+            error
+              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+              : "border-[hsl(35,20%,90%)] focus:border-[hsl(25,75%,47%)] focus:ring-[hsl(25,75%,47%)]"
+          }`}
         />
       </div>
 
@@ -262,8 +284,9 @@ export function PickupTimePicker({
 
       {/* Help Text */}
       <p className="text-sm text-[hsl(25,35%,55%)]">
-        Select when you would like to pick up your order. Orders typically take
-        10-15 minutes to prepare.
+        Orders typically take 10-15 minutes to prepare.
+        {openingHours &&
+          ` We are open ${openingHours[getDayName(new Date())]?.open || "N/A"} - ${openingHours[getDayName(new Date())]?.close || "N/A"}.`}
       </p>
     </div>
   );

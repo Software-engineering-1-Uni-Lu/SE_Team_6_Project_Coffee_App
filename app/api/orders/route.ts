@@ -19,6 +19,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { createAnonClient } from "@/src/integrations/supabase/anon";
+import { isWithinOpeningHours, OpeningHours } from "@/src/lib/opening-hours";
 
 export async function POST(request: NextRequest) {
   try {
@@ -94,6 +95,29 @@ export async function POST(request: NextRequest) {
         },
       }
     );
+
+    // Validate pickup time if provided
+    if (pickup_time) {
+      const pickupDate = new Date(pickup_time);
+
+      // Fetch opening hours
+      const { data: settingsData } = await supabase
+        .from("settings")
+        .select("opening_hours")
+        .limit(1)
+        .single();
+
+      if (settingsData && settingsData.opening_hours) {
+        const openingHours =
+          settingsData.opening_hours as unknown as OpeningHours;
+        if (!isWithinOpeningHours(pickupDate, openingHours)) {
+          return NextResponse.json(
+            { error: "Pickup time is outside opening hours" },
+            { status: 400 }
+          );
+        }
+      }
+    }
 
     // Get authenticated user
     const {
