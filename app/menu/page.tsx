@@ -1,11 +1,11 @@
 /**
  * Purpose: Public menu page displaying available items for customers to browse.
- * Allows customers to view all menu offerings with category filtering.
+ * Allows customers to view all menu offerings with search and filtering capabilities.
  */
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Image from "next/image";
 import { createClient } from "@/src/integrations/supabase/client";
 import type { MenuItem, Category } from "@/src/types/menu";
@@ -30,6 +30,12 @@ export default function MenuPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [addingToCart, setAddingToCart] = useState<string | null>(null);
+
+  // New state for filters
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterVegetarian, setFilterVegetarian] = useState(false);
+  const [filterVegan, setFilterVegan] = useState(false);
+  const [excludedAllergens, setExcludedAllergens] = useState<string[]>([]);
 
   const { addItem } = useCart();
 
@@ -97,10 +103,74 @@ export default function MenuPage() {
     fetchData();
   }, []);
 
-  // Filter items by selected category
-  const filteredItems = selectedCategory
-    ? items.filter((item) => item.category_id === selectedCategory)
-    : items;
+  // Compute unique allergens from all items
+  const uniqueAllergens = useMemo(() => {
+    const allergens = new Set<string>();
+    items.forEach((item) => {
+      item.allergens?.forEach((allergen) => allergens.add(allergen));
+    });
+    return Array.from(allergens).sort();
+  }, [items]);
+
+  // Filter items logic
+  const filteredItems = useMemo(() => {
+    return items.filter((item) => {
+      // Category Filter
+      if (selectedCategory && item.category_id !== selectedCategory) {
+        return false;
+      }
+
+      // Search Filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const matchesName = item.name.toLowerCase().includes(query);
+        const matchesDesc = item.description?.toLowerCase().includes(query);
+        if (!matchesName && !matchesDesc) return false;
+      }
+
+      // Dietary Filters
+      if (filterVegetarian && !item.vegetarian) return false;
+      if (filterVegan && !item.vegan) return false;
+
+      // Allergen Exclusion Filter
+      if (excludedAllergens.length > 0) {
+        const hasExcludedAllergen = item.allergens?.some((allergen) =>
+          excludedAllergens.includes(allergen)
+        );
+        if (hasExcludedAllergen) return false;
+      }
+
+      return true;
+    });
+  }, [
+    items,
+    selectedCategory,
+    searchQuery,
+    filterVegetarian,
+    filterVegan,
+    excludedAllergens,
+  ]);
+
+  const toggleAllergen = (allergen: string) => {
+    setExcludedAllergens((prev) =>
+      prev.includes(allergen)
+        ? prev.filter((a) => a !== allergen)
+        : [...prev, allergen]
+    );
+  };
+
+  const clearAllFilters = () => {
+    setSearchQuery("");
+    setFilterVegetarian(false);
+    setFilterVegan(false);
+    setExcludedAllergens([]);
+  };
+
+  const hasActiveFilters =
+    searchQuery ||
+    filterVegetarian ||
+    filterVegan ||
+    excludedAllergens.length > 0;
 
   // Format price from cents to euros
   const formatPrice = (cents: number) => {
@@ -136,35 +206,130 @@ export default function MenuPage() {
 
   return (
     <main className="container mx-auto px-4 py-8">
-      <header className="mb-8">
-        <h1 className="mb-4 text-4xl font-bold text-[hsl(25,35%,25%)]">Menu</h1>
+      <header className="mb-8 space-y-4">
+        <h1 className="text-4xl font-bold text-[hsl(25,35%,25%)]">Menu</h1>
 
-        {/* Category filter */}
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setSelectedCategory(null)}
-            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-              selectedCategory === null
-                ? "bg-[hsl(25,35%,25%)] text-white"
-                : "bg-[hsl(35,20%,95%)] text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,90%)]"
-            }`}
-          >
-            All Items
-          </button>
-          {categories.map((category) => (
+        {/* Search Bar */}
+        <div className="relative max-w-md">
+          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+            <svg
+              className="h-5 w-5 text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+          </div>
+          <input
+            type="text"
+            className="block w-full rounded-md border border-[hsl(35,20%,90%)] bg-white py-2 pl-10 pr-3 text-sm placeholder-gray-500 focus:border-[hsl(25,35%,25%)] focus:outline-none focus:ring-1 focus:ring-[hsl(25,35%,25%)]"
+            placeholder="Search items..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+
+        {/* Filters Container */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center">
+          {/* Category Filters */}
+          <div className="flex flex-wrap gap-2">
             <button
-              key={category.id}
-              onClick={() => setSelectedCategory(category.id)}
+              onClick={() => setSelectedCategory(null)}
               className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-                selectedCategory === category.id
+                selectedCategory === null
                   ? "bg-[hsl(25,35%,25%)] text-white"
                   : "bg-[hsl(35,20%,95%)] text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,90%)]"
               }`}
             >
-              {category.name}
+              All Items
             </button>
-          ))}
+            {categories.map((category) => (
+              <button
+                key={category.id}
+                onClick={() => setSelectedCategory(category.id)}
+                className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                  selectedCategory === category.id
+                    ? "bg-[hsl(25,35%,25%)] text-white"
+                    : "bg-[hsl(35,20%,95%)] text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,90%)]"
+                }`}
+              >
+                {category.name}
+              </button>
+            ))}
+          </div>
+
+          <div className="hidden h-6 w-px bg-gray-300 sm:block"></div>
+
+          {/* Dietary Filters */}
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setFilterVegetarian(!filterVegetarian)}
+              className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                filterVegetarian
+                  ? "border-green-200 bg-green-100 text-green-800"
+                  : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              Vegetarian
+            </button>
+            <button
+              onClick={() => setFilterVegan(!filterVegan)}
+              className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                filterVegan
+                  ? "border-green-200 bg-green-100 text-green-800"
+                  : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              Vegan
+            </button>
+          </div>
         </div>
+
+        {/* Allergen Exclusion Chips */}
+        {uniqueAllergens.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-[hsl(25,35%,25%)]">
+              Exclude Allergens:
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {uniqueAllergens.map((allergen) => {
+                const isExcluded = excludedAllergens.includes(allergen);
+                return (
+                  <button
+                    key={allergen}
+                    onClick={() => toggleAllergen(allergen)}
+                    className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                      isExcluded
+                        ? "border-orange-200 bg-orange-100 text-orange-800 ring-1 ring-orange-300"
+                        : "border-[hsl(35,20%,90%)] bg-white text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    {allergen}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Clear Filters */}
+        {hasActiveFilters && (
+          <div>
+            <button
+              onClick={clearAllFilters}
+              className="text-sm text-[hsl(25,35%,45%)] underline hover:text-[hsl(25,35%,25%)]"
+            >
+              Clear all filters
+            </button>
+          </div>
+        )}
       </header>
 
       {/* Loading state */}
@@ -197,8 +362,18 @@ export default function MenuPage() {
         <div className="flex min-h-[400px] items-center justify-center">
           <div className="text-center">
             <p className="text-lg text-[hsl(25,35%,25%)]">
-              No items available in this category.
+              {hasActiveFilters
+                ? "No items match your filters."
+                : "No items available in this category."}
             </p>
+            {hasActiveFilters && (
+              <button
+                onClick={clearAllFilters}
+                className="mt-4 rounded-md bg-[hsl(25,35%,25%)] px-4 py-2 text-white hover:bg-[hsl(25,40%,15%)]"
+              >
+                Clear Filters
+              </button>
+            )}
           </div>
         </div>
       )}
