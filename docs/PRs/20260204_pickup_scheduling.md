@@ -1,4 +1,4 @@
-# PR Description: Pickup Scheduling (CSA-201)
+# PR Description: Pickup Scheduling & Staff Schedule (CSA-201)
 
 **Branch:** `feature/customer/pickup-scheduling`
 **Author:** Filip
@@ -8,51 +8,60 @@
 
 ## Objective
 
-Enable customers to schedule a pickup time for their orders during checkout, while strictly enforcing store operational hours and preparation time.
+Enforce cafe opening hours for order pickup scheduling to prevent orders outside operational times, and provide staff with a scheduled view of upcoming orders.
 
 ---
 
 ## What Was Implemented
 
-### 1. Store Hours Enforcement
+### 1. Opening Hours Logic
 
-- Updated `PickupTimePicker` component to validate selected times against store hours (8:00 AM - 6:00 PM).
-- Added logic to prevent selecting times outside of these hours.
-- Added user feedback (error messages) when an invalid time is selected.
+- **Utility:** Created `src/lib/opening-hours.ts` to handle opening hour checks (`isWithinOpeningHours`) and finding the next open slot.
+- **Database:** Fetches `opening_hours` from the `settings` table (JSONB format).
 
-### 2. Validation Logic
+### 2. Pickup Time Picker (Client-Side)
 
-- **Preparation Time:** Enforced a minimum 15-minute buffer from the current time.
-- **Store Hours:** Enforced strict bounds (start hour inclusive, close hour exclusive).
-- **Advance Booking:** Limited scheduling to within the next 7 days.
+- Updated `PickupTimePicker` component to accept `openingHours` prop.
+- Validates selected time against store hours dynamically.
+- Shows error messages with specific open/close times for the selected day.
 
-### 3. Testing
+### 3. Order Validation (Server-Side)
 
-- Added `src/components/__tests__/pickup-time-picker.test.tsx` with unit tests covering:
-  - Rendering.
-  - Validation for times before opening (too early).
-  - Validation for times after closing (too late).
-  - Successful selection of valid times.
+- Updated `POST /api/orders` to validate `pickup_time` against the database `settings`.
+- Returns `400 Bad Request` if the time is outside opening hours, preventing API abuse.
+
+### 4. Staff Schedule View
+
+- **New Page:** Created `/staff/orders/schedule` to view orders grouped by time slots (hourly).
+- **Navigation:** Added a "View Schedule" link to the main staff orders queue.
+- **Features:**
+  - Toggle between "Today" and "Tomorrow".
+  - Shows order details (customer, items, total) in a timeline view.
 
 ---
 
 ## Files Modified / Added
 
+- `src/lib/opening-hours.ts` (New)
 - `src/components/pickup-time-picker.tsx` (Modified)
-- `src/components/__tests__/pickup-time-picker.test.tsx` (New)
+- `app/checkout/page.tsx` (Modified - fetch settings)
+- `app/api/orders/route.ts` (Modified - server validation)
+- `app/staff/orders/schedule/page.tsx` (New)
+- `app/staff/orders/page.tsx` (Modified - added link)
 
 ---
 
 ## Testing Checklist
 
-- [x] Try to select a time before 8:00 AM -> Error displayed
-- [x] Try to select a time after 6:00 PM -> Error displayed
-- [x] Try to select a time within 15 mins of now -> Error displayed
-- [x] Select a valid time (e.g., 2:00 PM tomorrow) -> Success
-- [x] Verify checkout form submission includes valid pickup time
+- [x] Pickup picker shows error for times outside opening hours
+- [x] Pickup picker allows valid times within opening hours
+- [x] Server rejects orders with invalid pickup times (API test)
+- [x] Staff schedule view correctly groups orders by hour
+- [x] "Today/Tomorrow" toggle works in schedule view
+- [x] Navigation from queue to schedule works
 
 ---
 
 ## Summary
 
-The pickup scheduling feature is now robust and prevents customers from placing orders for times when the store is closed or cannot fulfill the order immediately.
+This feature ensures operational compliance by enforcing opening hours and improves staff workflow with a dedicated schedule view for managing peak times.
