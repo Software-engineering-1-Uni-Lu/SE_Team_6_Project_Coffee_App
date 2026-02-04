@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/src/integrations/supabase/client";
 import { useUser } from "@/src/hooks/useUser";
 import { jsPDF } from "jspdf";
+import { useGracePeriod } from "@/src/hooks/useGracePeriod";
+import { toast } from "sonner";
 
 /**
  * Purpose: Order confirmation page displaying order summary after checkout.
@@ -35,6 +37,7 @@ interface Order {
   guest_name?: string | null;
   guest_email?: string | null;
   created_at: string;
+  customer_id?: string | null;
 }
 
 const formatCurrency = (cents: number) => `€ ${(cents / 100).toFixed(2)}`;
@@ -51,6 +54,11 @@ export default function OrderConfirmationPage() {
   const [emailInput, setEmailInput] = useState("");
   const [lookupLoading, setLookupLoading] = useState(false);
   const [invoiceGenerating, setInvoiceGenerating] = useState(false);
+
+  const { canCancel, remainingSeconds } = useGracePeriod(
+    order?.created_at || "",
+    order?.status
+  );
 
   const cacheKey = useMemo(
     () => (orderId ? `order:${orderId}` : null),
@@ -164,6 +172,22 @@ export default function OrderConfirmationPage() {
       setError(err instanceof Error ? err.message : "Failed to look up order");
     } finally {
       setLookupLoading(false);
+    }
+  };
+
+  const handleCancelOrder = async () => {
+    if (!order) return;
+    try {
+      const response = await fetch(`/api/orders/${order.id}/cancel`, {
+        method: "POST",
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+
+      toast.success("Order cancelled successfully");
+      setOrder(data.order); // Update local state
+    } catch (err: any) {
+      toast.error(err.message || "Failed to cancel order");
     }
   };
 
@@ -417,6 +441,31 @@ export default function OrderConfirmationPage() {
 
         {/* Order Summary Card */}
         <div className="rounded-lg border border-[hsl(25,25%,85%)] bg-white p-6 shadow-sm">
+          {/* Cancel Order Section */}
+          {order?.status === "cancelled" ? (
+            <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-center">
+              <p className="font-semibold text-red-800">
+                This order has been cancelled.
+              </p>
+            </div>
+          ) : canCancel ? (
+            <div className="mb-6 rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-center">
+              <p className="mb-3 text-sm text-yellow-800">
+                You can cancel this order within{" "}
+                <span className="font-mono font-semibold text-red-600">
+                  {Math.floor(remainingSeconds / 60)}:
+                  {(remainingSeconds % 60).toString().padStart(2, "0")}
+                </span>
+              </p>
+              <button
+                onClick={handleCancelOrder}
+                className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+              >
+                Cancel Order
+              </button>
+            </div>
+          ) : null}
+
           {/* Order Info */}
           <section className="mb-6 border-b border-[hsl(25,25%,85%)] pb-6">
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
