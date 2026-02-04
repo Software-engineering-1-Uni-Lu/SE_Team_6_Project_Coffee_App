@@ -7,7 +7,9 @@
  * Features:
  * - Quick select buttons (ASAP, 30 min, 1 hour)
  * - Manual time selection via datetime input
- * - Basic validation (minimum 15 min advance)
+ * - Validation:
+ *   - Minimum 15 min advance
+ *   - Within store hours (8:00 AM - 6:00 PM)
  * - Clear button to reset selection
  */
 
@@ -19,6 +21,9 @@ interface PickupTimePickerProps {
   minAdvanceMinutes?: number;
   disabled?: boolean;
 }
+
+const STORE_OPEN_HOUR = 8;
+const STORE_CLOSE_HOUR = 18;
 
 export function PickupTimePicker({
   value,
@@ -56,6 +61,12 @@ export function PickupTimePicker({
     return rounded;
   };
 
+  // Check if time is within store hours
+  const isWithinStoreHours = (date: Date): boolean => {
+    const hours = date.getHours();
+    return hours >= STORE_OPEN_HOUR && hours < STORE_CLOSE_HOUR;
+  };
+
   // Validate selected time
   const validateTime = useCallback(
     (date: Date | null): boolean => {
@@ -80,6 +91,13 @@ export function PickupTimePicker({
         return false;
       }
 
+      if (!isWithinStoreHours(date)) {
+        setError(
+          `Store hours are ${STORE_OPEN_HOUR}:00 AM - ${STORE_CLOSE_HOUR}:00 PM`
+        );
+        return false;
+      }
+
       setError(null);
       return true;
     },
@@ -92,8 +110,11 @@ export function PickupTimePicker({
     newTime.setMinutes(newTime.getMinutes() + minutes);
     const rounded = roundToQuarter(newTime);
 
+    // If ASAP falls outside hours, still update but show error
     if (validateTime(rounded)) {
       onChange(rounded);
+    } else {
+      validateTime(rounded); // Show error
     }
   };
 
@@ -106,9 +127,9 @@ export function PickupTimePicker({
     }
 
     const selectedDate = new Date(e.target.value);
-    if (validateTime(selectedDate)) {
-      onChange(selectedDate);
-    }
+    // Allow user to pick invalid times so they can see the error message
+    onChange(selectedDate);
+    validateTime(selectedDate);
   };
 
   // Handle clear button
@@ -222,7 +243,11 @@ export function PickupTimePicker({
           onChange={handleDateTimeChange}
           disabled={disabled}
           min={formatDateTimeLocal(getMinTime())}
-          className="w-full rounded-md border border-[hsl(35,20%,90%)] px-3 py-2 text-[hsl(25,35%,25%)] focus:border-[hsl(25,75%,47%)] focus:outline-none focus:ring-2 focus:ring-[hsl(25,75%,47%)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          className={`w-full rounded-md border px-3 py-2 text-[hsl(25,35%,25%)] focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+            error
+              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+              : "border-[hsl(35,20%,90%)] focus:border-[hsl(25,75%,47%)] focus:ring-[hsl(25,75%,47%)]"
+          }`}
         />
       </div>
 
@@ -262,8 +287,8 @@ export function PickupTimePicker({
 
       {/* Help Text */}
       <p className="text-sm text-[hsl(25,35%,55%)]">
-        Select when you would like to pick up your order. Orders typically take
-        10-15 minutes to prepare.
+        Store hours: {STORE_OPEN_HOUR}:00 AM - {STORE_CLOSE_HOUR}:00 PM. Orders
+        typically take 10-15 minutes to prepare.
       </p>
     </div>
   );
