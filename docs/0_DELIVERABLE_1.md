@@ -247,7 +247,7 @@ It’s a **smart coffee shop app** where:
 
 ## Ordering System Use Case Descriptions
 
-![ordering-system-use-cases](assets/deliverable_1/ordering-system-use-cases.png)
+![ordering-system-use-cases](../assets/deliverable_1/ordering-system-use-cases.png)
 
 ### Use Case: Authenticate
 
@@ -436,7 +436,7 @@ It’s a **smart coffee shop app** where:
 
 ## **Authentication System Use Case Descriptions**
 
-![authentication-system-use-cases](assets/deliverable_1/auth-system-use-cases.png)
+![authentication-system-use-cases](../assets/deliverable_1/auth-system-use-cases.png)
 
 ### Use Case: Register an Account
 
@@ -547,7 +547,7 @@ It’s a **smart coffee shop app** where:
 
 ## **Account Management System Use Case Descriptions**
 
-![account-management-system-use-cases](assets/deliverable_1/account-management-system-use-cases.png)
+![account-management-system-use-cases](../assets/deliverable_1/account-management-system-use-cases.png)
 
 ### Use Case: Browse Staff Accounts
 
@@ -619,11 +619,11 @@ It’s a **smart coffee shop app** where:
   3. Manager fills in details and submits.
   4. System creates the account, sends welcome email via Notification Provider, and adds to list.
   5. New staff receives login instructions.
-  **Main Success Scenario (Remove)**:
-  1. Manager selects “Delete” from staff details.
-  2. System shows confirmation dialog with warning about irreversible action.
-  3. Manager confirms deletion.
-  4. System deactivates account, removes personal data (if required), and logs action.
+     **Main Success Scenario (Remove)**:
+  6. Manager selects “Delete” from staff details.
+  7. System shows confirmation dialog with warning about irreversible action.
+  8. Manager confirms deletion.
+  9. System deactivates account, removes personal data (if required), and logs action.
 - **Alternate flows**:
   - **Add**:
     - 3a. Email already in use: System prevents creation and suggests login reset.
@@ -637,7 +637,7 @@ It’s a **smart coffee shop app** where:
 
 ## **Listings System Use Case Descriptions**
 
-![listings-system-use-cases](assets/deliverable_1/listings-system-use-cases.png)
+![listings-system-use-cases](../assets/deliverable_1/listings-system-use-cases.png)
 
 ### Use Case: Browse Menu
 
@@ -717,17 +717,17 @@ It’s a **smart coffee shop app** where:
   3. System loads empty editable form.
   4. Manager adds name, price, description, ingredients, photos, and availability.
   5. System saves changes and updates live menu instantly.
-  **Main Success Scenario (Modify)**:
-  1. Manager navigates to “Menu Management” in admin panel.
-  2. Manager selects an item to edit.
-  3. System loads editable form with current values.
-  4. Manager updates name, price, description, ingredients, photos, and availability.
-  5. System saves changes and updates live menu instantly.
-  **Main Success Scenario (Remove)**:
-  1. Manager selects “Delete” on a menu item.
-  2. System shows confirmation with warning (e.g., “This will hide item from customers”).
-  3. Manager confirms.
-  4. System soft-deletes or archives the item and removes from public view.
+     **Main Success Scenario (Modify)**:
+  6. Manager navigates to “Menu Management” in admin panel.
+  7. Manager selects an item to edit.
+  8. System loads editable form with current values.
+  9. Manager updates name, price, description, ingredients, photos, and availability.
+  10. System saves changes and updates live menu instantly.
+      **Main Success Scenario (Remove)**:
+  11. Manager selects “Delete” on a menu item.
+  12. System shows confirmation with warning (e.g., “This will hide item from customers”).
+  13. Manager confirms.
+  14. System soft-deletes or archives the item and removes from public view.
 - **Alternate flows**:
   - **Modify**:
     - 4a. Price change during active orders: System logs and applies to new orders only.
@@ -757,7 +757,7 @@ It’s a **smart coffee shop app** where:
 
 ## **Inventory System Use Case Descriptions**
 
-![inventory-system-use-cases](assets/deliverable_1/inventory-system-use-cases.png)
+![inventory-system-use-cases](../assets/deliverable_1/inventory-system-use-cases.png)
 
 ### Use Case: Browse Ingredients
 
@@ -820,17 +820,17 @@ It’s a **smart coffee shop app** where:
   3. Manager fills in details and submits.
   4. System verifies uniqueness and adds ingredient.
   5. Ingredient appears in the list.
-  **Main Success Scenario (Modify)**:
-  1. Manager selects “Modify” on an ingredient.
-  2. System shows form: name, unit, reorder level, quantity, etc...
-  3. Manager edits the details and submits.
-  4. System verifies uniqueness and adds ingredient.
-  5. Ingredient appears in the list.
-  **Main Success Scenario (Remove)**:
-  1. Manager selects “Delete” on an ingredient.
-  2. System checks if ingredient is used in active menu items.
-  3. If not in use: System shows confirmation and removes ingredient.
-  4. If in use: System blocks deletion and suggests archiving.
+     **Main Success Scenario (Modify)**:
+  6. Manager selects “Modify” on an ingredient.
+  7. System shows form: name, unit, reorder level, quantity, etc...
+  8. Manager edits the details and submits.
+  9. System verifies uniqueness and adds ingredient.
+  10. Ingredient appears in the list.
+      **Main Success Scenario (Remove)**:
+  11. Manager selects “Delete” on an ingredient.
+  12. System checks if ingredient is used in active menu items.
+  13. If not in use: System shows confirmation and removes ingredient.
+  14. If in use: System blocks deletion and suggests archiving.
 - **Alternate flows**:
   - **Add**:
     - 3a. Name already exists: System prevents duplicate and suggests edit.
@@ -880,7 +880,7 @@ It’s a **smart coffee shop app** where:
 
 ## **Internal Management System Use Case Descriptions**
 
-![internal-management-system-use-cases](assets/deliverable_1/internal-management-system-use-cases.png)
+![internal-management-system-use-cases](../assets/deliverable_1/internal-management-system-use-cases.png)
 
 ### Use Case: Perform Backups
 
@@ -957,24 +957,24 @@ It’s a **smart coffee shop app** where:
 
 # 5️⃣ Domain Diagrams
 
-![domain-diagram](assets/deliverable_1/domain-diagram.svg)
+![domain-diagram](../assets/deliverable_1/domain-diagram.svg)
 
 ---
 
 # 5️⃣ Sequence Diagrams (Behavioral Aspects)
 
-![sequence-diagram-1](assets/deliverable_1/sequence-diagram-1.png)
-![sequence-diagram-1](assets/deliverable_1/sequence-diagram-2.png)
-![sequence-diagram-1](assets/deliverable_1/sequence-diagram-3.png)
-![sequence-diagram-1](assets/deliverable_1/sequence-diagram-4.png)
-![sequence-diagram-1](assets/deliverable_1/sequence-diagram-5.png)
-![sequence-diagram-1](assets/deliverable_1/sequence-diagram-6.png)
-![sequence-diagram-1](assets/deliverable_1/sequence-diagram-7.png)
-![sequence-diagram-1](assets/deliverable_1/sequence-diagram-8.png)
-![sequence-diagram-1](assets/deliverable_1/sequence-diagram-9.png)
-![sequence-diagram-1](assets/deliverable_1/sequence-diagram-10.png)
-![sequence-diagram-1](assets/deliverable_1/sequence-diagram-11.png)
-![sequence-diagram-1](assets/deliverable_1/sequence-diagram-12.png)
-![sequence-diagram-1](assets/deliverable_1/sequence-diagram-13.png)
-![sequence-diagram-1](assets/deliverable_1/sequence-diagram-14.png)
-![sequence-diagram-1](assets/deliverable_1/sequence-diagram-15.png)
+![sequence-diagram-1](../assets/deliverable_1/sequence-diagram-1.png)
+![sequence-diagram-1](../assets/deliverable_1/sequence-diagram-2.png)
+![sequence-diagram-1](../assets/deliverable_1/sequence-diagram-3.png)
+![sequence-diagram-1](../assets/deliverable_1/sequence-diagram-4.png)
+![sequence-diagram-1](../assets/deliverable_1/sequence-diagram-5.png)
+![sequence-diagram-1](../assets/deliverable_1/sequence-diagram-6.png)
+![sequence-diagram-1](../assets/deliverable_1/sequence-diagram-7.png)
+![sequence-diagram-1](../assets/deliverable_1/sequence-diagram-8.png)
+![sequence-diagram-1](../assets/deliverable_1/sequence-diagram-9.png)
+![sequence-diagram-1](../assets/deliverable_1/sequence-diagram-10.png)
+![sequence-diagram-1](../assets/deliverable_1/sequence-diagram-11.png)
+![sequence-diagram-1](../assets/deliverable_1/sequence-diagram-12.png)
+![sequence-diagram-1](../assets/deliverable_1/sequence-diagram-13.png)
+![sequence-diagram-1](../assets/deliverable_1/sequence-diagram-14.png)
+![sequence-diagram-1](../assets/deliverable_1/sequence-diagram-15.png)
