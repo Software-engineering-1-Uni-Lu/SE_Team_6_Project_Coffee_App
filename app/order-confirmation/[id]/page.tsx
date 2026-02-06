@@ -7,6 +7,7 @@ import { useUser } from "@/src/hooks/useUser";
 import { jsPDF } from "jspdf";
 import { useGracePeriod } from "@/src/hooks/useGracePeriod";
 import { toast } from "sonner";
+import { formatPaymentMethod, type PaymentMethod } from "@/src/types/order";
 
 /**
  * Purpose: Order confirmation page displaying order summary after checkout.
@@ -15,10 +16,13 @@ import { toast } from "sonner";
 
 interface OrderItem {
   id: string;
+  productId?: string;
   name: string;
   quantity: number;
   price: number;
+  basePrice?: number;
   modifiers?: Array<{ label: string; price: number }>;
+  imageUrl?: string | null;
 }
 
 interface Order {
@@ -451,18 +455,46 @@ export default function OrderConfirmationPage() {
           ) : canCancel ? (
             <div className="mb-6 rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-center">
               <p className="mb-3 text-sm text-yellow-800">
-                You can cancel this order within{" "}
+                You can cancel or modify this order within{" "}
                 <span className="font-mono font-semibold text-red-600">
                   {Math.floor(remainingSeconds / 60)}:
                   {(remainingSeconds % 60).toString().padStart(2, "0")}
                 </span>
               </p>
-              <button
-                onClick={handleCancelOrder}
-                className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
-              >
-                Cancel Order
-              </button>
+              <div className="flex justify-center gap-3">
+                <button
+                  onClick={() => {
+                    // Store order items in sessionStorage for the cart to load
+                    // Ensure each item has productId for loadFromOrder compatibility
+                    const modifyItems = order.items.map((item) => ({
+                      productId: item.productId || item.id,
+                      name: item.name,
+                      quantity: item.quantity,
+                      price: item.price,
+                      basePrice: item.basePrice,
+                      modifiers: item.modifiers || [],
+                      imageUrl: item.imageUrl || null,
+                    }));
+                    sessionStorage.setItem(
+                      "modify_order",
+                      JSON.stringify({
+                        orderId: order.id,
+                        items: modifyItems,
+                      })
+                    );
+                    router.push("/checkout");
+                  }}
+                  className="rounded-md bg-[hsl(25,35%,25%)] px-4 py-2 text-sm font-medium text-white hover:bg-[hsl(25,40%,15%)]"
+                >
+                  Modify Order
+                </button>
+                <button
+                  onClick={handleCancelOrder}
+                  className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                >
+                  Cancel Order
+                </button>
+              </div>
             </div>
           ) : null}
 
@@ -617,11 +649,7 @@ export default function OrderConfirmationPage() {
                   Payment Method:
                 </span>
                 <p className="text-[hsl(25,35%,25%)]">
-                  {order.payment_method === "card"
-                    ? "Card"
-                    : order.payment_method === "cash"
-                      ? "Cash"
-                      : "Loyalty Points"}
+                  {formatPaymentMethod(order.payment_method as PaymentMethod)}
                 </p>
               </div>
               {order.points_earned > 0 && (

@@ -30,7 +30,7 @@ const baseCheckoutSchema = z.object({
   guest_email: z.string().email().optional().or(z.literal("")),
   customer_name: z.string().optional(),
   customer_email: z.string().email().optional().or(z.literal("")),
-  paymentMethod: z.enum(["card", "cash", "loyalty_points"]),
+  paymentMethod: z.enum(["card", "cash", "loyalty_points", "digital_wallet"]),
   cardNumber: z.string().optional(),
   cardName: z.string().optional(),
   expiry: z.string().optional(),
@@ -78,13 +78,44 @@ type CheckoutFormData = z.infer<typeof checkoutSchema>;
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { items, totalPrice, isLoading: cartLoading, clearCart } = useCart();
+  const {
+    items,
+    totalPrice,
+    isLoading: cartLoading,
+    clearCart,
+    loadFromOrder,
+  } = useCart();
   const { user, role, loading: userLoading } = useUser();
   const supabase = createClient();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Check for active order modification. Two keys are used:
+  // - "modify_order": set by order-confirmation page with items (consumed once to load cart)
+  // - "modifying_order_id": persists the order ID across page navigations (menu → checkout)
+  const [modifyingOrderId, setModifyingOrderId] = useState<string | null>(
+    () => {
+      if (typeof window === "undefined") return null;
+      try {
+        // First check the one-time payload from order-confirmation
+        const stored = sessionStorage.getItem("modify_order");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed?.orderId) {
+            // Persist the order ID separately so it survives navigating to /menu and back
+            sessionStorage.setItem("modifying_order_id", parsed.orderId);
+            return parsed.orderId;
+          }
+        }
+        // Otherwise check if we're returning from /menu during an active modification
+        return sessionStorage.getItem("modifying_order_id");
+      } catch {
+        // Ignore
+      }
+      return null;
+    }
+  );
   const [paymentMethod, setPaymentMethod] = useState<
-    "card" | "cash" | "loyalty_points"
+    "card" | "cash" | "loyalty_points" | "digital_wallet"
   >("card");
   const [pickupTime, setPickupTime] = useState<Date | null>(null);
   const [pointsPerEuro, setPointsPerEuro] = useState<number>(10);
@@ -238,14 +269,35 @@ export default function CheckoutPage() {
     }
   }, [hasEnoughPoints, paymentMethod, setValue]);
 
-  // Redirect if cart is empty (only after cart has finished loading)
+  // Load order items when modifying an existing order
   useEffect(() => {
-    // Wait for both cart and user loading to complete before redirecting
-    // This prevents premature redirects during initialization
-    if (!cartLoading && !userLoading && items.length === 0) {
+    if (cartLoading || userLoading || !modifyingOrderId) return;
+    try {
+      const stored = sessionStorage.getItem("modify_order");
+      if (stored) {
+        const { items: orderItems } = JSON.parse(stored);
+        sessionStorage.removeItem("modify_order");
+        if (Array.isArray(orderItems) && orderItems.length > 0) {
+          loadFromOrder(orderItems);
+        }
+      }
+    } catch {
+      // Ignore parse errors
+    }
+  }, [cartLoading, userLoading, modifyingOrderId, loadFromOrder]);
+
+  // Redirect if cart is empty (only after cart has finished loading)
+  // Skip redirect when in order modification mode
+  useEffect(() => {
+    if (
+      !cartLoading &&
+      !userLoading &&
+      items.length === 0 &&
+      !modifyingOrderId
+    ) {
       router.push("/menu");
     }
-  }, [cartLoading, userLoading, items.length, router]);
+  }, [cartLoading, userLoading, items.length, router, modifyingOrderId]);
 
   // Format card number input
   const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -338,7 +390,7 @@ export default function CheckoutPage() {
         subtotal_cents: number;
         tax_cents: number;
         total_cents: number;
-        payment_method: "card" | "cash" | "loyalty_points";
+        payment_method: "card" | "cash" | "loyalty_points" | "digital_wallet";
         payment_status: string;
         pickup_time: string | null;
       } = {
@@ -358,7 +410,8 @@ export default function CheckoutPage() {
         payment_method: data.paymentMethod,
         payment_status:
           data.paymentMethod === "card" ||
-          data.paymentMethod === "loyalty_points"
+          data.paymentMethod === "loyalty_points" ||
+          data.paymentMethod === "digital_wallet"
             ? "paid"
             : "unpaid",
         pickup_time: pickupTime ? pickupTime.toISOString() : null,
@@ -508,13 +561,87 @@ export default function CheckoutPage() {
         return;
       }
 
+      // For card or digital wallet payments, create a payment intent first (mock or real Stripe)
+      let paymentIntentId: string | null = null;
+      if (
+        orderData.payment_method === "card" ||
+        orderData.payment_method === "digital_wallet"
+      ) {
+        try {
+          const piResponse = await fetch("/api/payments/create-intent", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              amount: orderData.total_cents,
+              currency: "eur",
+            }),
+          });
+          const piData = await piResponse.json();
+          if (!piResponse.ok) {
+            toast.error(piData.error || "Payment processing failed");
+            return;
+          }
+          paymentIntentId = piData.paymentIntentId;
+        } catch {
+          toast.error("Payment processing failed. Please try again.");
+          return;
+        }
+      }
+
+      // If modifying an existing order, call the modify endpoint instead
+      if (modifyingOrderId) {
+        const modifyResponse = await fetch(
+          `/api/orders/${modifyingOrderId}/modify`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              items: orderData.items,
+              subtotal_cents: orderData.subtotal_cents,
+              tax_cents: orderData.tax_cents,
+              total_cents: orderData.total_cents,
+            }),
+          }
+        );
+
+        const modifyResult = await modifyResponse.json();
+        if (!modifyResponse.ok) {
+          toast.error(
+            modifyResult.error || "Failed to modify order. Please try again."
+          );
+          return;
+        }
+
+        toast.success("Order modified successfully!");
+        await clearCart();
+        // Clear the persistent modification state
+        try {
+          sessionStorage.removeItem("modifying_order_id");
+          sessionStorage.removeItem("modify_order");
+        } catch {
+          // Ignore
+        }
+        setModifyingOrderId(null);
+        router.push(`/order-confirmation/${modifyingOrderId}`);
+        return;
+      }
+
       // AUTHENTICATED ORDERS: Use API route (server-side for security)
       const response = await fetch("/api/orders", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(orderData),
+        body: JSON.stringify({
+          ...orderData,
+          payment_intent_id: paymentIntentId,
+          // Payments start as paid in mock; real Stripe would set 'pending' until webhook
+          payment_status:
+            orderData.payment_method === "card" ||
+            orderData.payment_method === "digital_wallet"
+              ? "paid"
+              : orderData.payment_status,
+        }),
       });
 
       // Check content type before parsing
@@ -577,8 +704,20 @@ export default function CheckoutPage() {
     <main className="container mx-auto px-4 py-8">
       <header className="mb-8">
         <h1 className="mb-4 text-4xl font-bold text-[hsl(25,35%,25%)]">
-          Checkout
+          {modifyingOrderId ? "Modify Order" : "Checkout"}
         </h1>
+        {modifyingOrderId && (
+          <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3">
+            <p className="text-sm text-yellow-800">
+              You are modifying order{" "}
+              <span className="font-mono font-semibold">
+                #{modifyingOrderId.slice(0, 8)}
+              </span>
+              . Update your items and click &quot;Update Order&quot; to save
+              changes.
+            </p>
+          </div>
+        )}
       </header>
 
       <form onSubmit={handleSubmit(onSubmit)}>
@@ -738,6 +877,20 @@ export default function CheckoutPage() {
                   <button
                     type="button"
                     onClick={() => {
+                      setPaymentMethod("digital_wallet");
+                      setValue("paymentMethod", "digital_wallet");
+                    }}
+                    className={`flex-1 rounded-md border-2 px-4 py-3 text-sm font-medium transition-colors ${
+                      paymentMethod === "digital_wallet"
+                        ? "border-[hsl(25,35%,25%)] bg-[hsl(25,35%,25%)] text-white"
+                        : "border-[hsl(35,20%,90%)] bg-white text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,95%)]"
+                    }`}
+                  >
+                     Apple Pay
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
                       setPaymentMethod("cash");
                       setValue("paymentMethod", "cash");
                     }}
@@ -766,7 +919,7 @@ export default function CheckoutPage() {
                           : "border-[hsl(35,20%,90%)] bg-white text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,95%)]"
                       } ${!hasEnoughPoints ? "cursor-not-allowed opacity-60" : ""}`}
                     >
-                      ⭐ Loyalty Points
+                      ⭐ Loyalty
                     </button>
                   )}
                 </div>
@@ -927,6 +1080,19 @@ export default function CheckoutPage() {
                         )}
                       </div>
                     </div>
+                  </div>
+                )}
+
+                {/* Digital Wallet Info */}
+                {paymentMethod === "digital_wallet" && (
+                  <div className="rounded-lg bg-[hsl(35,20%,95%)] p-4">
+                    <p className="text-sm text-[hsl(25,35%,25%)]">
+                      Pay securely with Apple Pay.
+                    </p>
+                    <p className="mt-2 text-sm font-medium text-[hsl(25,35%,25%)]">
+                      The payment dialog will appear after you click &quot;Place
+                      Order&quot;.
+                    </p>
                   </div>
                 )}
 
@@ -1124,7 +1290,11 @@ export default function CheckoutPage() {
                   disabled={isSubmitting || items.length === 0}
                   className="mt-6 w-full rounded-md bg-[hsl(25,35%,25%)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[hsl(25,40%,15%)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {isSubmitting ? "Processing..." : "Place Order"}
+                  {isSubmitting
+                    ? "Processing..."
+                    : modifyingOrderId
+                      ? "Update Order"
+                      : "Place Order"}
                 </button>
               </div>
             </div>

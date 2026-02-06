@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
     const { data: items, error } = await supabase
       .from("items")
       .select("*, category:categories(id, name, slug)")
+      .is("deleted_at", null)
       .order("name");
 
     if (error) {

@@ -71,11 +71,16 @@ export async function getUserRole(userId: string): Promise<UserRole> {
     .single();
 
   if (error || !data) {
+    console.error(
+      `[getUserRole] Error fetching role for ${userId}:`,
+      error?.message
+    );
     // Default to customer if no role found (safety fallback)
     return "customer";
   }
 
   // Return role from database
+  console.log(`[getUserRole] Found role for ${userId}:`, data.role);
   return (data.role as UserRole) || "customer";
 }
 
@@ -99,9 +104,16 @@ export async function getUserRoleWithCache(user: User): Promise<UserRole> {
   const cachedRole = user.user_metadata?._cached_role as UserRole | undefined;
 
   if (cachedRole && isValidRole(cachedRole)) {
+    console.log(
+      `[getUserRoleWithCache] Using cached role for ${user.id}:`,
+      cachedRole
+    );
     return cachedRole;
   }
 
+  console.log(
+    `[getUserRoleWithCache] No cache, fetching from DB for ${user.id}`
+  );
   // Not cached, fetch from database
   const role = await getUserRole(user.id);
 
@@ -177,6 +189,7 @@ export async function getCurrentUser(): Promise<User | null> {
   } = await supabase.auth.getUser();
 
   if (error || !user) {
+    console.log("[getCurrentUser] No user found:", error?.message);
     return null;
   }
 

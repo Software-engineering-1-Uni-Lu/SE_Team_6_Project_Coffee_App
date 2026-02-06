@@ -129,6 +129,12 @@ export function Navbar({ onCartOpen }: NavbarProps) {
                     >
                       Promotions
                     </Link>
+                    <Link
+                      href="/admin/system"
+                      className="block px-4 py-2 text-sm text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,95%)]"
+                    >
+                      System
+                    </Link>
                   </div>
                 </div>
               )}
@@ -160,6 +166,18 @@ export function Navbar({ onCartOpen }: NavbarProps) {
                         className="block px-4 py-2 text-sm text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,95%)]"
                       >
                         Missing Ingredients
+                      </Link>
+                      <Link
+                        href="/staff/shift-notes"
+                        className="block px-4 py-2 text-sm text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,95%)]"
+                      >
+                        Shift Notes
+                      </Link>
+                      <Link
+                        href="/staff/settings/mfa"
+                        className="block px-4 py-2 text-sm text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,95%)]"
+                      >
+                        MFA Settings
                       </Link>
                     </div>
                   </div>

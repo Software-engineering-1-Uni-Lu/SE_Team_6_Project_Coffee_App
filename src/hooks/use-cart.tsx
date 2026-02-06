@@ -31,6 +31,17 @@ interface CartContextType {
   removeItem: (cartItemId: string) => Promise<void>;
   updateQuantity: (cartItemId: string, quantity: number) => Promise<void>;
   clearCart: () => Promise<void>;
+  loadFromOrder: (
+    orderItems: Array<{
+      productId: string;
+      name: string;
+      quantity: number;
+      price: number;
+      basePrice?: number;
+      modifiers?: Array<{ label: string; price: number }>;
+      imageUrl?: string | null;
+    }>
+  ) => Promise<void>;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -239,6 +250,36 @@ export function CartProvider({ children }: { children: ReactNode }) {
     [persistCart, removeItem, userId]
   );
 
+  // Load items from an existing order (for order modification)
+  const loadFromOrder = useCallback(
+    async (
+      orderItems: Array<{
+        productId: string;
+        name: string;
+        quantity: number;
+        price: number;
+        basePrice?: number;
+        modifiers?: Array<{ label: string; price: number }>;
+        imageUrl?: string | null;
+      }>
+    ) => {
+      const cartItems: CartItem[] = orderItems.map((item) => ({
+        cartItemId: generateCartItemId(item.productId, item.modifiers || []),
+        productId: item.productId,
+        name: item.name,
+        quantity: item.quantity,
+        price: item.price,
+        basePrice: item.basePrice ?? item.price,
+        modifiers: item.modifiers || [],
+        imageUrl: item.imageUrl || null,
+      }));
+
+      setItems(cartItems);
+      await persistCart(cartItems);
+    },
+    [persistCart]
+  );
+
   // Clear cart
   const clearCart = useCallback(async () => {
     setItems([]);
@@ -262,6 +303,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     removeItem,
     updateQuantity,
     clearCart,
+    loadFromOrder,
   };
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
