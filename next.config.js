@@ -10,6 +10,15 @@ const nextConfig = {
       },
     ],
   },
+  async rewrites() {
+    return [
+      // API versioning: /api/v1/* maps to /api/* (current version)
+      {
+        source: "/api/v1/:path*",
+        destination: "/api/:path*",
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;

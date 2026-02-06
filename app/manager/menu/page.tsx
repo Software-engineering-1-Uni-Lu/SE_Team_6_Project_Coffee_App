@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { createClient } from "@/src/integrations/supabase/client";
 import type { MenuItem, Category } from "@/src/types/menu";
 import { ManagerMenuItemModal } from "@/src/components/manager-menu-item-modal";
@@ -97,6 +98,34 @@ export default function ManagerMenuPage() {
     handleModalClose();
   };
 
+  const handleToggleSoldOut = async (item: MenuItem) => {
+    try {
+      const currentSoldOut = (item as any).sold_out || false;
+      const response = await fetch(`/api/menu/items/${item.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sold_out: !currentSoldOut,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to update sold out status");
+      }
+
+      toast.success(
+        currentSoldOut ? "Item marked as available" : "Item marked as sold out"
+      );
+      fetchData();
+    } catch (error: any) {
+      console.error("Error toggling sold out status:", error);
+      toast.error(error.message || "Failed to update sold out status");
+    }
+  };
+
   const filteredItems = selectedCategory
     ? items.filter((item) => item.category_id === selectedCategory)
     : items;
@@ -127,15 +156,44 @@ export default function ManagerMenuPage() {
               Menu Management
             </h1>
             <p className="mt-2 text-[hsl(25,35%,45%)]">
-              Manage your menu items and categories
+              Manage your menu items and categories. Drink stock (e.g. beans,
+              milk) is managed in{" "}
+              <Link
+                href="/manager/ingredients"
+                className="font-medium text-[hsl(25,35%,25%)] underline hover:no-underline"
+              >
+                Ingredients
+              </Link>{" "}
+              (g, ml); countable items (e.g. muffins) use ingredients with unit
+              &quot;pcs&quot;.
             </p>
           </div>
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="rounded-md bg-[hsl(25,35%,25%)] px-4 py-2 text-white transition-colors hover:bg-[hsl(25,40%,15%)]"
-          >
-            Add Item
-          </button>
+          <div className="flex gap-3">
+            <Link
+              href="/manager/ingredients"
+              className="rounded-md border border-[hsl(35,20%,90%)] bg-white px-4 py-2 text-[hsl(25,35%,25%)] transition-colors hover:bg-[hsl(35,20%,95%)]"
+            >
+              Ingredients
+            </Link>
+            <Link
+              href="/manager/ingredients/bulk-import"
+              className="rounded-md border border-[hsl(35,20%,90%)] bg-white px-4 py-2 text-[hsl(25,35%,25%)] transition-colors hover:bg-[hsl(35,20%,95%)]"
+            >
+              Bulk Import
+            </Link>
+            <Link
+              href="/manager/ingredients/audit-log"
+              className="rounded-md border border-[hsl(35,20%,90%)] bg-white px-4 py-2 text-[hsl(25,35%,25%)] transition-colors hover:bg-[hsl(35,20%,95%)]"
+            >
+              Audit Log
+            </Link>
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="rounded-md bg-[hsl(25,35%,25%)] px-4 py-2 text-white transition-colors hover:bg-[hsl(25,40%,15%)]"
+            >
+              Add Item
+            </button>
+          </div>
         </header>
 
         {error && (
@@ -247,46 +305,42 @@ export default function ManagerMenuPage() {
                       )}
                     </div>
 
-                    {/* Inventory Status */}
-                    {(item as any).track_inventory && (
+                    {/* Sold Out Status */}
+                    {(item as any).sold_out && (
                       <div className="mb-3">
-                        <p className="text-xs text-[hsl(25,35%,45%)]">
-                          Stock:{" "}
-                          <span
-                            className={`font-medium ${
-                              (item as any).stock_quantity !== null &&
-                              (item as any).low_stock_threshold !== null &&
-                              (item as any).stock_quantity <=
-                                (item as any).low_stock_threshold
-                                ? "text-red-600"
-                                : "text-[hsl(25,35%,25%)]"
-                            }`}
-                          >
-                            {(item as any).stock_quantity ?? "N/A"}
-                          </span>
-                          {(item as any).low_stock_threshold !== null && (
-                            <span className="text-[hsl(25,35%,45%)]">
-                              {" "}
-                              (Threshold: {(item as any).low_stock_threshold})
-                            </span>
-                          )}
-                        </p>
+                        <span className="inline-flex items-center rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-800">
+                          Sold Out
+                        </span>
                       </div>
                     )}
 
                     {/* Actions */}
-                    <div className="flex gap-2">
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleEdit(item)}
+                          className="flex-1 rounded-md border border-[hsl(35,20%,90%)] bg-white px-3 py-2 text-sm font-medium text-[hsl(25,35%,25%)] transition-colors hover:bg-[hsl(35,20%,95%)]"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(item.id)}
+                          className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+                        >
+                          Delete
+                        </button>
+                      </div>
                       <button
-                        onClick={() => handleEdit(item)}
-                        className="flex-1 rounded-md border border-[hsl(35,20%,90%)] bg-white px-3 py-2 text-sm font-medium text-[hsl(25,35%,25%)] transition-colors hover:bg-[hsl(35,20%,95%)]"
+                        onClick={() => handleToggleSoldOut(item)}
+                        className={`w-full rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                          (item as any).sold_out
+                            ? "border-green-300 bg-green-50 text-green-700 hover:bg-green-100"
+                            : "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100"
+                        }`}
                       >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(item.id)}
-                        className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
-                      >
-                        Delete
+                        {(item as any).sold_out
+                          ? "Mark Available"
+                          : "Mark Sold Out"}
                       </button>
                     </div>
                   </div>

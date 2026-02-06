@@ -6,8 +6,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
+import Image from "next/image";
 import type { MenuItem, Category, Modifier } from "@/src/types/menu";
+import { createClient } from "@/src/integrations/supabase/client";
 import { toast } from "sonner";
+
+interface IngredientOption {
+  id: string;
+  name: string;
+  unit: string;
+}
+
+interface RecipeRow {
+  bean_id: string;
+  quantity_needed: number;
+}
 
 interface ManagerMenuItemModalProps {
   isOpen: boolean;
@@ -26,6 +40,10 @@ export function ManagerMenuItemModal({
 }: ManagerMenuItemModalProps) {
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [ingredientOptions, setIngredientOptions] = useState<
+    IngredientOption[]
+  >([]);
+  const [recipeRows, setRecipeRows] = useState<RecipeRow[]>([]);
   const [formData, setFormData] = useState({
     category_id: "",
     name: "",
@@ -95,6 +113,29 @@ export function ManagerMenuItemModal({
       });
     }
   }, [item, categories]);
+
+  // Fetch available ingredients and existing recipe for this item
+  useEffect(() => {
+    if (!isOpen) return;
+    const supabase = createClient();
+
+    supabase
+      .from("beans")
+      .select("id, name, unit")
+      .eq("active", true)
+      .order("name")
+      .then(({ data }) => setIngredientOptions(data || []));
+
+    if (item) {
+      supabase
+        .from("item_ingredients")
+        .select("bean_id, quantity_needed")
+        .eq("item_id", item.id)
+        .then(({ data }) => setRecipeRows(data || []));
+    } else {
+      setRecipeRows([]);
+    }
+  }, [isOpen, item]);
 
   const generateSlug = (name: string) => {
     return name
@@ -180,6 +221,27 @@ export function ManagerMenuItemModal({
         throw new Error(data.error || "Failed to save item");
       }
 
+      const result = await response.json();
+      const itemId = item?.id || result.item?.id;
+
+      // Save recipe (ingredient linkages)
+      if (itemId) {
+        const supabase = createClient();
+        await supabase.from("item_ingredients").delete().eq("item_id", itemId);
+        const validRows = recipeRows.filter(
+          (r) => r.bean_id && r.quantity_needed > 0
+        );
+        if (validRows.length > 0) {
+          await supabase.from("item_ingredients").insert(
+            validRows.map((r) => ({
+              item_id: itemId,
+              bean_id: r.bean_id,
+              quantity_needed: r.quantity_needed,
+            }))
+          );
+        }
+      }
+
       toast.success(
         item ? "Item updated successfully" : "Item created successfully"
       );
@@ -239,10 +301,14 @@ export function ManagerMenuItemModal({
             <div className="space-y-4">
               {/* Category */}
               <div>
-                <label className="mb-1 block text-sm font-medium text-[hsl(25,35%,25%)]">
+                <label
+                  htmlFor="menu-item-category"
+                  className="mb-1 block text-sm font-medium text-[hsl(25,35%,25%)]"
+                >
                   Category <span className="text-red-500">*</span>
                 </label>
                 <select
+                  id="menu-item-category"
                   required
                   value={formData.category_id}
                   onChange={(e) =>
@@ -252,6 +318,7 @@ export function ManagerMenuItemModal({
                     }))
                   }
                   className="w-full rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)]"
+                  aria-label="Category"
                 >
                   <option value="">Select a category</option>
                   {categories.map((cat) => (
@@ -348,6 +415,8 @@ export function ManagerMenuItemModal({
                     onChange={handleImageUpload}
                     disabled={uploadingImage}
                     className="w-full rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)] disabled:opacity-50"
+                    aria-label="Upload image file"
+                    title="Upload image file"
                   />
                   {uploadingImage && (
                     <p className="text-xs text-[hsl(25,35%,45%)]">
@@ -367,11 +436,13 @@ export function ManagerMenuItemModal({
                     placeholder="Or enter image URL"
                   />
                   {formData.image_url && (
-                    <div className="mt-2">
-                      <img
+                    <div className="relative mt-2 h-32 w-32">
+                      <Image
                         src={formData.image_url}
                         alt="Preview"
-                        className="h-32 w-32 rounded-md object-cover"
+                        fill
+                        className="rounded-md object-cover"
+                        unoptimized
                       />
                     </div>
                   )}
@@ -463,110 +534,228 @@ export function ManagerMenuItemModal({
                 </label>
               </div>
 
-              {/* Inventory Management */}
+              {/* Inventory: for drinks/coffee use ingredients; for retail (e.g. muffins) use per-item */}
+              {(() => {
+                const currentCategory = categories.find(
+                  (c) => c.id === formData.category_id
+                );
+                const isDrinksCategory =
+                  currentCategory &&
+                  (currentCategory.slug === "drinks" ||
+                    currentCategory.slug === "coffee" ||
+                    currentCategory.name.toLowerCase().includes("drink") ||
+                    currentCategory.name.toLowerCase().includes("coffee"));
+                if (isDrinksCategory) {
+                  return (
+                    <div className="space-y-2 border-t pt-4">
+                      <h3 className="text-lg font-semibold text-[hsl(25,35%,25%)]">
+                        Inventory
+                      </h3>
+                      <p className="text-sm text-[hsl(25,35%,45%)]">
+                        Stock for drinks is tracked per ingredient (beans,
+                        milk). Adjust quantities and view the audit log in{" "}
+                        <Link
+                          href="/manager/ingredients"
+                          className="font-medium text-[hsl(25,35%,25%)] underline hover:no-underline"
+                        >
+                          Ingredients
+                        </Link>
+                        .
+                      </p>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="space-y-4 border-t pt-4">
+                    <h3 className="text-lg font-semibold text-[hsl(25,35%,25%)]">
+                      Inventory Management
+                    </h3>
+                    <div>
+                      <label className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={formData.track_inventory}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              track_inventory: e.target.checked,
+                            }))
+                          }
+                          className="mr-2"
+                        />
+                        <span className="text-sm font-medium text-[hsl(25,35%,25%)]">
+                          Track Inventory
+                        </span>
+                      </label>
+                      <p className="mt-1 text-xs text-[hsl(25,35%,45%)]">
+                        Enable inventory tracking for this item (e.g., retail
+                        products)
+                      </p>
+                    </div>
+                    {formData.track_inventory && (
+                      <>
+                        <div>
+                          <label className="mb-1 block text-sm font-medium text-[hsl(25,35%,25%)]">
+                            Stock Quantity
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={formData.stock_quantity ?? ""}
+                            onChange={(e) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                stock_quantity: e.target.value
+                                  ? parseInt(e.target.value, 10)
+                                  : null,
+                              }))
+                            }
+                            className="w-full rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)]"
+                            placeholder="0"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-sm font-medium text-[hsl(25,35%,25%)]">
+                            Low Stock Threshold
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={formData.low_stock_threshold ?? ""}
+                            onChange={(e) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                low_stock_threshold: e.target.value
+                                  ? parseInt(e.target.value, 10)
+                                  : null,
+                              }))
+                            }
+                            className="w-full rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)]"
+                            placeholder="10"
+                          />
+                          <p className="mt-1 text-xs text-[hsl(25,35%,45%)]">
+                            Alert when stock falls below this quantity
+                          </p>
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-sm font-medium text-[hsl(25,35%,25%)]">
+                            Reorder Quantity
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={formData.reorder_quantity ?? ""}
+                            onChange={(e) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                reorder_quantity: e.target.value
+                                  ? parseInt(e.target.value, 10)
+                                  : null,
+                              }))
+                            }
+                            className="w-full rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)]"
+                            placeholder="50"
+                          />
+                          <p className="mt-1 text-xs text-[hsl(25,35%,45%)]">
+                            Suggested quantity to reorder when stock is low
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Ingredients / Recipe */}
               <div className="space-y-4 border-t pt-4">
-                <h3 className="text-lg font-semibold text-[hsl(25,35%,25%)]">
-                  Inventory Management
-                </h3>
-
-                {/* Track Inventory */}
-                <div>
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={formData.track_inventory}
-                      onChange={(e) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          track_inventory: e.target.checked,
-                        }))
-                      }
-                      className="mr-2"
-                    />
-                    <span className="text-sm font-medium text-[hsl(25,35%,25%)]">
-                      Track Inventory
-                    </span>
-                  </label>
-                  <p className="mt-1 text-xs text-[hsl(25,35%,45%)]">
-                    Enable inventory tracking for this item (e.g., retail
-                    products)
-                  </p>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-[hsl(25,35%,25%)]">
+                    Ingredients (Recipe)
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setRecipeRows((prev) => [
+                        ...prev,
+                        { bean_id: "", quantity_needed: 0 },
+                      ])
+                    }
+                    className="rounded-md border border-[hsl(35,20%,85%)] px-3 py-1 text-sm font-medium text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,95%)]"
+                  >
+                    + Add Ingredient
+                  </button>
                 </div>
-
-                {formData.track_inventory && (
-                  <>
-                    {/* Stock Quantity */}
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-[hsl(25,35%,25%)]">
-                        Stock Quantity
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={formData.stock_quantity ?? ""}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            stock_quantity: e.target.value
-                              ? parseInt(e.target.value, 10)
-                              : null,
-                          }))
-                        }
-                        className="w-full rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)]"
-                        placeholder="0"
-                      />
-                    </div>
-
-                    {/* Low Stock Threshold */}
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-[hsl(25,35%,25%)]">
-                        Low Stock Threshold
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={formData.low_stock_threshold ?? ""}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            low_stock_threshold: e.target.value
-                              ? parseInt(e.target.value, 10)
-                              : null,
-                          }))
-                        }
-                        className="w-full rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)]"
-                        placeholder="10"
-                      />
-                      <p className="mt-1 text-xs text-[hsl(25,35%,45%)]">
-                        Alert when stock falls below this quantity
-                      </p>
-                    </div>
-
-                    {/* Reorder Quantity */}
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-[hsl(25,35%,25%)]">
-                        Reorder Quantity
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={formData.reorder_quantity ?? ""}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            reorder_quantity: e.target.value
-                              ? parseInt(e.target.value, 10)
-                              : null,
-                          }))
-                        }
-                        className="w-full rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)]"
-                        placeholder="50"
-                      />
-                      <p className="mt-1 text-xs text-[hsl(25,35%,45%)]">
-                        Suggested quantity to reorder when stock is low
-                      </p>
-                    </div>
-                  </>
+                <p className="text-xs text-[hsl(25,35%,45%)]">
+                  Define how much of each ingredient is consumed per order of
+                  this item.
+                </p>
+                {recipeRows.length === 0 ? (
+                  <p className="text-sm text-[hsl(25,35%,45%)]">
+                    No ingredients linked.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {recipeRows.map((row, idx) => {
+                      const selectedIng = ingredientOptions.find(
+                        (i) => i.id === row.bean_id
+                      );
+                      return (
+                        <div key={idx} className="flex items-center gap-2">
+                          <select
+                            value={row.bean_id}
+                            onChange={(e) => {
+                              const updated = [...recipeRows];
+                              updated[idx] = {
+                                ...updated[idx],
+                                bean_id: e.target.value,
+                              };
+                              setRecipeRows(updated);
+                            }}
+                            className="flex-1 rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)]"
+                            aria-label={`Select ingredient for recipe row ${idx + 1}`}
+                          >
+                            <option value="">Select ingredient</option>
+                            {ingredientOptions.map((ing) => (
+                              <option key={ing.id} value={ing.id}>
+                                {ing.name} ({ing.unit})
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={row.quantity_needed || ""}
+                            onChange={(e) => {
+                              const updated = [...recipeRows];
+                              updated[idx] = {
+                                ...updated[idx],
+                                quantity_needed:
+                                  parseFloat(e.target.value) || 0,
+                              };
+                              setRecipeRows(updated);
+                            }}
+                            placeholder="Qty"
+                            className="w-24 rounded-md border border-[hsl(35,20%,85%)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(25,35%,25%)]"
+                          />
+                          <span className="text-xs text-[hsl(25,35%,45%)]">
+                            {selectedIng?.unit || ""}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setRecipeRows((prev) =>
+                                prev.filter((_, i) => i !== idx)
+                              )
+                            }
+                            className="rounded text-red-500 hover:text-red-700"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             </div>

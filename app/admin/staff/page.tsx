@@ -9,6 +9,7 @@
  * - CSA-132: Browse staff accounts
  * - CSA-133: View & edit staff account details
  * - CSA-134: Add or remove staff accounts
+ * - CSA-207: Search & filter staff accounts (ENHANCED)
  *
  * PERMISSIONS:
  * - Managers: Can only view/manage staff (not other managers or admins)
@@ -20,6 +21,9 @@
  */
 
 import StaffManagementClient from "@/src/components/admin/staff/StaffManagementClient";
+
+// CSA-207: Force dynamic rendering (required for useSearchParams)
+export const dynamic = "force-dynamic";
 
 /**
  * Staff Management Page - /admin/staff

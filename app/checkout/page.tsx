@@ -15,18 +15,22 @@ import { z } from "zod";
 import { useCart } from "@/src/hooks/use-cart";
 import { useUser } from "@/src/hooks/useUser";
 import { formatPrice } from "@/src/lib/cart-utils";
+import { calculatePointsForCartItems } from "@/src/lib/loyalty-utils";
 import { createClient } from "@/src/integrations/supabase/client";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import { PickupTimePicker } from "@/src/components/pickup-time-picker";
+import { OpeningHours } from "@/src/lib/opening-hours";
 
 const TAX_RATE = 0.1; // 10% tax rate
 
-// Base checkout schema with optional guest fields
+// Base checkout schema with optional guest fields and customer fields
 const baseCheckoutSchema = z.object({
   guest_name: z.string().optional(),
   guest_email: z.string().email().optional().or(z.literal("")),
-  paymentMethod: z.enum(["card", "cash"]),
+  customer_name: z.string().optional(),
+  customer_email: z.string().email().optional().or(z.literal("")),
+  paymentMethod: z.enum(["card", "cash", "loyalty_points", "digital_wallet"]),
   cardNumber: z.string().optional(),
   cardName: z.string().optional(),
   expiry: z.string().optional(),
@@ -74,20 +78,69 @@ type CheckoutFormData = z.infer<typeof checkoutSchema>;
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { items, totalPrice, isLoading: cartLoading, clearCart } = useCart();
-  const { user, loading: userLoading } = useUser();
+  const {
+    items,
+    totalPrice,
+    isLoading: cartLoading,
+    clearCart,
+    loadFromOrder,
+  } = useCart();
+  const { user, role, loading: userLoading } = useUser();
   const supabase = createClient();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"card" | "cash">("card");
+  // Check for active order modification. Two keys are used:
+  // - "modify_order": set by order-confirmation page with items (consumed once to load cart)
+  // - "modifying_order_id": persists the order ID across page navigations (menu → checkout)
+  const [modifyingOrderId, setModifyingOrderId] = useState<string | null>(
+    () => {
+      if (typeof window === "undefined") return null;
+      try {
+        // First check the one-time payload from order-confirmation
+        const stored = sessionStorage.getItem("modify_order");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed?.orderId) {
+            // Persist the order ID separately so it survives navigating to /menu and back
+            sessionStorage.setItem("modifying_order_id", parsed.orderId);
+            return parsed.orderId;
+          }
+        }
+        // Otherwise check if we're returning from /menu during an active modification
+        return sessionStorage.getItem("modifying_order_id");
+      } catch {
+        // Ignore
+      }
+      return null;
+    }
+  );
+  const [paymentMethod, setPaymentMethod] = useState<
+    "card" | "cash" | "loyalty_points" | "digital_wallet"
+  >("card");
   const [pickupTime, setPickupTime] = useState<Date | null>(null);
+  const [pointsPerEuro, setPointsPerEuro] = useState<number>(10);
+  const [openingHours, setOpeningHours] = useState<OpeningHours | undefined>(
+    undefined
+  );
+  const redeemMultiplier = 5;
+  const [loyaltyBalance, setLoyaltyBalance] = useState<number>(0);
+  const [loyaltyLoading, setLoyaltyLoading] = useState<boolean>(false);
+  const [loyaltyError, setLoyaltyError] = useState<string>("");
 
   // Calculate totals (EU VAT logic - prices include tax)
   const total = totalPrice; // Total stays the same as cart
   const netPrice = Math.round(total / (1 + TAX_RATE)); // Price without VAT
   const tax = total - netPrice; // VAT amount included in the price
+  const estimatedPoints = Math.max(0, Math.floor(total / 100) * pointsPerEuro);
+  const pointsRequired = calculatePointsForCartItems(
+    items,
+    pointsPerEuro * redeemMultiplier
+  );
 
   const isGuest = !user;
+  const canUsePoints = !isGuest && role === "customer";
+  const hasEnoughPoints =
+    canUsePoints && pointsRequired > 0 && loyaltyBalance >= pointsRequired;
 
   const {
     register,
@@ -100,6 +153,8 @@ export default function CheckoutPage() {
     defaultValues: {
       guest_name: "",
       guest_email: "",
+      customer_name: "",
+      customer_email: "",
       paymentMethod: "card",
       cardNumber: "",
       cardName: "",
@@ -117,14 +172,132 @@ export default function CheckoutPage() {
     }
   }, [watchedPaymentMethod]);
 
-  // Redirect if cart is empty (only after cart has finished loading)
+  // Pre-populate customer contact fields for authenticated users
   useEffect(() => {
-    // Wait for both cart and user loading to complete before redirecting
-    // This prevents premature redirects during initialization
-    if (!cartLoading && !userLoading && items.length === 0) {
+    if (user && !isGuest) {
+      setValue("customer_name", user.user_metadata?.full_name || "");
+      setValue("customer_email", user.email || "");
+    }
+  }, [user, isGuest, setValue]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const fetchSettings = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("settings")
+          .select("points_per_euro, opening_hours")
+          .limit(1)
+          .single();
+
+        if (!error && data && isActive) {
+          if (data.points_per_euro) setPointsPerEuro(data.points_per_euro);
+          if (data.opening_hours)
+            setOpeningHours(data.opening_hours as unknown as OpeningHours);
+        }
+      } catch {
+        // Use default points ratio when settings fetch fails.
+      }
+    };
+
+    fetchSettings();
+
+    return () => {
+      isActive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!canUsePoints) {
+      setLoyaltyBalance(0);
+      setLoyaltyError("");
+      setLoyaltyLoading(false);
+      return;
+    }
+
+    let isActive = true;
+    setLoyaltyLoading(true);
+    setLoyaltyError("");
+
+    const fetchLoyaltyBalance = async () => {
+      try {
+        const response = await fetch("/api/loyalty/summary", {
+          credentials: "include",
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to load loyalty points");
+        }
+
+        if (isActive) {
+          setLoyaltyBalance(Number(data.balance || 0));
+        }
+      } catch (err) {
+        if (isActive) {
+          setLoyaltyError(
+            err instanceof Error ? err.message : "Failed to load loyalty points"
+          );
+        }
+      } finally {
+        if (isActive) {
+          setLoyaltyLoading(false);
+        }
+      }
+    };
+
+    fetchLoyaltyBalance();
+
+    return () => {
+      isActive = false;
+    };
+  }, [canUsePoints]);
+
+  useEffect(() => {
+    if (!canUsePoints && paymentMethod === "loyalty_points") {
+      setPaymentMethod("card");
+      setValue("paymentMethod", "card");
+    }
+  }, [canUsePoints, paymentMethod, setValue]);
+
+  useEffect(() => {
+    if (paymentMethod === "loyalty_points" && !hasEnoughPoints) {
+      setPaymentMethod("card");
+      setValue("paymentMethod", "card");
+    }
+  }, [hasEnoughPoints, paymentMethod, setValue]);
+
+  // Load order items when modifying an existing order
+  useEffect(() => {
+    if (cartLoading || userLoading || !modifyingOrderId) return;
+    try {
+      const stored = sessionStorage.getItem("modify_order");
+      if (stored) {
+        const { items: orderItems } = JSON.parse(stored);
+        sessionStorage.removeItem("modify_order");
+        if (Array.isArray(orderItems) && orderItems.length > 0) {
+          loadFromOrder(orderItems);
+        }
+      }
+    } catch {
+      // Ignore parse errors
+    }
+  }, [cartLoading, userLoading, modifyingOrderId, loadFromOrder]);
+
+  // Redirect if cart is empty (only after cart has finished loading)
+  // Skip redirect when in order modification mode
+  useEffect(() => {
+    if (
+      !cartLoading &&
+      !userLoading &&
+      items.length === 0 &&
+      !modifyingOrderId
+    ) {
       router.push("/menu");
     }
-  }, [cartLoading, userLoading, items.length, router]);
+  }, [cartLoading, userLoading, items.length, router, modifyingOrderId]);
 
   // Format card number input
   const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -162,6 +335,10 @@ export default function CheckoutPage() {
 
       // Validate guest fields for guest checkout
       if (isActuallyGuest) {
+        if (data.paymentMethod === "loyalty_points") {
+          toast.error("Loyalty points require a customer account");
+          return;
+        }
         if (!data.guest_name || !data.guest_name.trim()) {
           toast.error("Please enter your name");
           return;
@@ -171,6 +348,20 @@ export default function CheckoutPage() {
           return;
         }
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.guest_email)) {
+          toast.error("Please enter a valid email address");
+          return;
+        }
+      } else {
+        // Validate customer fields for authenticated users
+        if (!data.customer_name || !data.customer_name.trim()) {
+          toast.error("Please enter a name for this order");
+          return;
+        }
+        if (!data.customer_email || !data.customer_email.trim()) {
+          toast.error("Please enter an email for this order");
+          return;
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.customer_email)) {
           toast.error("Please enter a valid email address");
           return;
         }
@@ -188,7 +379,7 @@ export default function CheckoutPage() {
       }));
 
       // Prepare order data
-      // For authenticated users: customer_id is set, guest_name and guest_email are null
+      // For authenticated users: customer_id is set, guest_name and guest_email store the custom contact info
       // For guest users: customer_id is null, guest_name and guest_email are set
       const orderData: {
         customer_id: string | null;
@@ -199,20 +390,30 @@ export default function CheckoutPage() {
         subtotal_cents: number;
         tax_cents: number;
         total_cents: number;
-        payment_method: "card" | "cash";
+        payment_method: "card" | "cash" | "loyalty_points" | "digital_wallet";
         payment_status: string;
         pickup_time: string | null;
       } = {
         customer_id: isActuallyGuest ? null : currentUser?.id || null,
-        guest_name: isActuallyGuest ? data.guest_name?.trim() || null : null,
-        guest_email: isActuallyGuest ? data.guest_email?.trim() || null : null,
+        // Use customer fields for authenticated users, guest fields for guests
+        guest_name: isActuallyGuest
+          ? data.guest_name?.trim() || null
+          : data.customer_name?.trim() || null,
+        guest_email: isActuallyGuest
+          ? data.guest_email?.trim() || null
+          : data.customer_email?.trim() || null,
         status: "pending",
         items: orderItems,
         subtotal_cents: netPrice,
         tax_cents: tax,
         total_cents: total,
         payment_method: data.paymentMethod,
-        payment_status: data.paymentMethod === "card" ? "paid" : "unpaid",
+        payment_status:
+          data.paymentMethod === "card" ||
+          data.paymentMethod === "loyalty_points" ||
+          data.paymentMethod === "digital_wallet"
+            ? "paid"
+            : "unpaid",
         pickup_time: pickupTime ? pickupTime.toISOString() : null,
       };
 
@@ -360,13 +561,87 @@ export default function CheckoutPage() {
         return;
       }
 
+      // For card or digital wallet payments, create a payment intent first (mock or real Stripe)
+      let paymentIntentId: string | null = null;
+      if (
+        orderData.payment_method === "card" ||
+        orderData.payment_method === "digital_wallet"
+      ) {
+        try {
+          const piResponse = await fetch("/api/payments/create-intent", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              amount: orderData.total_cents,
+              currency: "eur",
+            }),
+          });
+          const piData = await piResponse.json();
+          if (!piResponse.ok) {
+            toast.error(piData.error || "Payment processing failed");
+            return;
+          }
+          paymentIntentId = piData.paymentIntentId;
+        } catch {
+          toast.error("Payment processing failed. Please try again.");
+          return;
+        }
+      }
+
+      // If modifying an existing order, call the modify endpoint instead
+      if (modifyingOrderId) {
+        const modifyResponse = await fetch(
+          `/api/orders/${modifyingOrderId}/modify`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              items: orderData.items,
+              subtotal_cents: orderData.subtotal_cents,
+              tax_cents: orderData.tax_cents,
+              total_cents: orderData.total_cents,
+            }),
+          }
+        );
+
+        const modifyResult = await modifyResponse.json();
+        if (!modifyResponse.ok) {
+          toast.error(
+            modifyResult.error || "Failed to modify order. Please try again."
+          );
+          return;
+        }
+
+        toast.success("Order modified successfully!");
+        await clearCart();
+        // Clear the persistent modification state
+        try {
+          sessionStorage.removeItem("modifying_order_id");
+          sessionStorage.removeItem("modify_order");
+        } catch {
+          // Ignore
+        }
+        setModifyingOrderId(null);
+        router.push(`/order-confirmation/${modifyingOrderId}`);
+        return;
+      }
+
       // AUTHENTICATED ORDERS: Use API route (server-side for security)
       const response = await fetch("/api/orders", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(orderData),
+        body: JSON.stringify({
+          ...orderData,
+          payment_intent_id: paymentIntentId,
+          // Payments start as paid in mock; real Stripe would set 'pending' until webhook
+          payment_status:
+            orderData.payment_method === "card" ||
+            orderData.payment_method === "digital_wallet"
+              ? "paid"
+              : orderData.payment_status,
+        }),
       });
 
       // Check content type before parsing
@@ -429,8 +704,20 @@ export default function CheckoutPage() {
     <main className="container mx-auto px-4 py-8">
       <header className="mb-8">
         <h1 className="mb-4 text-4xl font-bold text-[hsl(25,35%,25%)]">
-          Checkout
+          {modifyingOrderId ? "Modify Order" : "Checkout"}
         </h1>
+        {modifyingOrderId && (
+          <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3">
+            <p className="text-sm text-yellow-800">
+              You are modifying order{" "}
+              <span className="font-mono font-semibold">
+                #{modifyingOrderId.slice(0, 8)}
+              </span>
+              . Update your items and click &quot;Update Order&quot; to save
+              changes.
+            </p>
+          </div>
+        )}
       </header>
 
       <form onSubmit={handleSubmit(onSubmit)}>
@@ -500,13 +787,65 @@ export default function CheckoutPage() {
                     </div>
                   )}
 
-                  {/* Authenticated User Info */}
+                  {/* Customer Contact Fields - For authenticated users */}
                   {!isGuest && user && (
-                    <div className="rounded-lg bg-[hsl(35,20%,95%)] p-4">
-                      <p className="text-sm font-medium text-[hsl(25,35%,25%)]">
-                        Ordering as: {user.email}
-                      </p>
-                    </div>
+                    <>
+                      <div>
+                        <label
+                          htmlFor="customer_name"
+                          className="mb-2 block text-sm font-medium text-[hsl(25,35%,25%)]"
+                        >
+                          Name for Order <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          id="customer_name"
+                          {...register("customer_name")}
+                          className={`w-full rounded-md border px-4 py-2 text-[hsl(25,35%,25%)] transition-colors focus:outline-none focus:ring-2 focus:ring-opacity-20 ${
+                            errors.customer_name
+                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                              : "border-[hsl(35,20%,90%)] focus:border-[hsl(25,35%,25%)] focus:ring-[hsl(25,35%,25%)]"
+                          }`}
+                          placeholder="John Doe"
+                        />
+                        {errors.customer_name && (
+                          <p className="mt-1 text-xs text-red-500">
+                            {errors.customer_name.message}
+                          </p>
+                        )}
+                        <p className="mt-1 text-xs text-[hsl(25,20%,50%)]">
+                          Edit this to order for someone else
+                        </p>
+                      </div>
+                      <div>
+                        <label
+                          htmlFor="customer_email"
+                          className="mb-2 block text-sm font-medium text-[hsl(25,35%,25%)]"
+                        >
+                          Email for Order{" "}
+                          <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="email"
+                          id="customer_email"
+                          {...register("customer_email")}
+                          className={`w-full rounded-md border px-4 py-2 text-[hsl(25,35%,25%)] transition-colors focus:outline-none focus:ring-2 focus:ring-opacity-20 ${
+                            errors.customer_email
+                              ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                              : "border-[hsl(35,20%,90%)] focus:border-[hsl(25,35%,25%)] focus:ring-[hsl(25,35%,25%)]"
+                          }`}
+                          placeholder="john@example.com"
+                        />
+                        {errors.customer_email && (
+                          <p className="mt-1 text-xs text-red-500">
+                            {errors.customer_email.message}
+                          </p>
+                        )}
+                        <p className="mt-1 text-xs text-[hsl(25,20%,50%)]">
+                          This email will be used for order notifications
+                        </p>
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
@@ -520,7 +859,7 @@ export default function CheckoutPage() {
                 </h2>
 
                 {/* Payment method selection */}
-                <div className="mb-6 flex gap-4">
+                <div className="mb-6 flex flex-wrap gap-4">
                   <button
                     type="button"
                     onClick={() => {
@@ -538,6 +877,20 @@ export default function CheckoutPage() {
                   <button
                     type="button"
                     onClick={() => {
+                      setPaymentMethod("digital_wallet");
+                      setValue("paymentMethod", "digital_wallet");
+                    }}
+                    className={`flex-1 rounded-md border-2 px-4 py-3 text-sm font-medium transition-colors ${
+                      paymentMethod === "digital_wallet"
+                        ? "border-[hsl(25,35%,25%)] bg-[hsl(25,35%,25%)] text-white"
+                        : "border-[hsl(35,20%,90%)] bg-white text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,95%)]"
+                    }`}
+                  >
+                     Apple Pay
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
                       setPaymentMethod("cash");
                       setValue("paymentMethod", "cash");
                     }}
@@ -549,6 +902,26 @@ export default function CheckoutPage() {
                   >
                     💵 Cash
                   </button>
+                  {canUsePoints && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!hasEnoughPoints) {
+                          return;
+                        }
+                        setPaymentMethod("loyalty_points");
+                        setValue("paymentMethod", "loyalty_points");
+                      }}
+                      disabled={!hasEnoughPoints}
+                      className={`flex-1 rounded-md border-2 px-4 py-3 text-sm font-medium transition-colors ${
+                        paymentMethod === "loyalty_points"
+                          ? "border-[hsl(25,35%,25%)] bg-[hsl(25,35%,25%)] text-white"
+                          : "border-[hsl(35,20%,90%)] bg-white text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,95%)]"
+                      } ${!hasEnoughPoints ? "cursor-not-allowed opacity-60" : ""}`}
+                    >
+                      ⭐ Loyalty
+                    </button>
+                  )}
                 </div>
 
                 <input
@@ -556,6 +929,35 @@ export default function CheckoutPage() {
                   {...register("paymentMethod")}
                   value={paymentMethod}
                 />
+
+                {canUsePoints && (
+                  <div className="mb-4 rounded-lg bg-[hsl(35,20%,95%)] p-4">
+                    <div className="flex items-center justify-between text-sm font-medium text-[hsl(25,35%,25%)]">
+                      <span>Your points balance</span>
+                      <span>
+                        {loyaltyLoading
+                          ? "Loading..."
+                          : `${loyaltyBalance} pts`}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-sm text-[hsl(25,35%,45%)]">
+                      <span>Points required for this order</span>
+                      <span data-testid="loyalty-points-required">
+                        {pointsRequired} pts
+                      </span>
+                    </div>
+                    {loyaltyError && (
+                      <p className="mt-2 text-xs text-red-600">
+                        {loyaltyError}
+                      </p>
+                    )}
+                    {!loyaltyLoading && !hasEnoughPoints && (
+                      <p className="mt-2 text-xs text-[hsl(25,65%,35%)]">
+                        You need more points to pay with loyalty points.
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {/* Card Payment Form */}
                 {paymentMethod === "card" && (
@@ -577,11 +979,16 @@ export default function CheckoutPage() {
                             ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                             : "border-[hsl(35,20%,90%)] focus:border-[hsl(25,35%,25%)] focus:ring-[hsl(25,35%,25%)]"
                         }`}
-                        placeholder="1234 5678 9012 3456"
+                        placeholder="4242 4242 4242 4242"
                       />
                       {errors.cardNumber && (
                         <p className="mt-1 text-xs text-red-500">
                           {errors.cardNumber.message}
+                        </p>
+                      )}
+                      {!errors.cardNumber && (
+                        <p className="mt-1 text-xs text-[hsl(25,20%,50%)]">
+                          16 digits required. Test: 4242 4242 4242 4242
                         </p>
                       )}
                     </div>
@@ -629,11 +1036,16 @@ export default function CheckoutPage() {
                               ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                               : "border-[hsl(35,20%,90%)] focus:border-[hsl(25,35%,25%)] focus:ring-[hsl(25,35%,25%)]"
                           }`}
-                          placeholder="MM/YY"
+                          placeholder="12/27"
                         />
                         {errors.expiry && (
                           <p className="mt-1 text-xs text-red-500">
                             {errors.expiry.message}
+                          </p>
+                        )}
+                        {!errors.expiry && (
+                          <p className="mt-1 text-xs text-[hsl(25,20%,50%)]">
+                            Format: MM/YY (future date)
                           </p>
                         )}
                       </div>
@@ -661,8 +1073,26 @@ export default function CheckoutPage() {
                             {errors.cvc.message}
                           </p>
                         )}
+                        {!errors.cvc && (
+                          <p className="mt-1 text-xs text-[hsl(25,20%,50%)]">
+                            3 digits on back of card
+                          </p>
+                        )}
                       </div>
                     </div>
+                  </div>
+                )}
+
+                {/* Digital Wallet Info */}
+                {paymentMethod === "digital_wallet" && (
+                  <div className="rounded-lg bg-[hsl(35,20%,95%)] p-4">
+                    <p className="text-sm text-[hsl(25,35%,25%)]">
+                      Pay securely with Apple Pay.
+                    </p>
+                    <p className="mt-2 text-sm font-medium text-[hsl(25,35%,25%)]">
+                      The payment dialog will appear after you click &quot;Place
+                      Order&quot;.
+                    </p>
                   </div>
                 )}
 
@@ -674,6 +1104,17 @@ export default function CheckoutPage() {
                     </p>
                     <p className="mt-2 text-sm font-medium text-[hsl(25,35%,25%)]">
                       Payment will be collected when you pick up your order.
+                    </p>
+                  </div>
+                )}
+
+                {paymentMethod === "loyalty_points" && (
+                  <div className="rounded-lg bg-[hsl(35,20%,95%)] p-4">
+                    <p className="text-sm text-[hsl(25,35%,25%)]">
+                      Your points will be redeemed immediately for this order.
+                    </p>
+                    <p className="mt-2 text-sm font-medium text-[hsl(25,35%,25%)]">
+                      Points payments do not earn additional points.
                     </p>
                   </div>
                 )}
@@ -691,6 +1132,7 @@ export default function CheckoutPage() {
                   onChange={setPickupTime}
                   minAdvanceMinutes={15}
                   disabled={isSubmitting}
+                  openingHours={openingHours}
                 />
               </div>
             </div>
@@ -750,9 +1192,26 @@ export default function CheckoutPage() {
                             Qty: {item.quantity}
                           </p>
                         </div>
-                        <p className="text-sm font-medium text-[hsl(25,35%,25%)]">
-                          {formatPrice(item.price * item.quantity)}
-                        </p>
+                        <div className="flex flex-col items-end gap-0.5 text-sm">
+                          {item.basePrice != null &&
+                            item.price < item.basePrice && (
+                              <>
+                                <span className="text-xs text-[hsl(25,35%,45%)] line-through">
+                                  {formatPrice(item.basePrice * item.quantity)}
+                                </span>
+                                <span className="text-xs font-medium text-green-700">
+                                  Promotion: -
+                                  {formatPrice(
+                                    (item.basePrice - item.price) *
+                                      item.quantity
+                                  )}
+                                </span>
+                              </>
+                            )}
+                          <p className="font-medium text-[hsl(25,35%,25%)]">
+                            {formatPrice(item.price * item.quantity)}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -784,6 +1243,29 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
+                <div className="mt-4 rounded-md border border-[hsl(35,20%,90%)] bg-[hsl(35,20%,98%)] p-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-[hsl(25,35%,45%)]">
+                      {paymentMethod === "loyalty_points"
+                        ? "Points required"
+                        : "Estimated loyalty points"}
+                    </span>
+                    <span
+                      className="font-semibold text-[hsl(25,35%,25%)]"
+                      data-testid="estimated-loyalty-points"
+                    >
+                      {paymentMethod === "loyalty_points"
+                        ? `${pointsRequired} pts`
+                        : `${estimatedPoints} pts`}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-[hsl(25,35%,45%)]">
+                    {paymentMethod === "loyalty_points"
+                      ? "Points payments do not earn new points."
+                      : "Awarded when the order is completed and paid."}
+                  </p>
+                </div>
+
                 {/* Pickup Time Display */}
                 {pickupTime && (
                   <div className="border-t border-[hsl(35,20%,90%)] pt-4">
@@ -808,7 +1290,11 @@ export default function CheckoutPage() {
                   disabled={isSubmitting || items.length === 0}
                   className="mt-6 w-full rounded-md bg-[hsl(25,35%,25%)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[hsl(25,40%,15%)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {isSubmitting ? "Processing..." : "Place Order"}
+                  {isSubmitting
+                    ? "Processing..."
+                    : modifyingOrderId
+                      ? "Update Order"
+                      : "Place Order"}
                 </button>
               </div>
             </div>

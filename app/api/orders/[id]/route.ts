@@ -18,6 +18,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { sendOrderStatusUpdate } from "@/src/lib/notifications";
 
 export async function PATCH(
   request: NextRequest,
@@ -156,6 +157,17 @@ export async function PATCH(
 
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    }
+
+    // Send email notification for key status changes (best-effort)
+    if (["ready", "completed", "cancelled"].includes(status)) {
+      const emailTo = order.guest_email;
+      const emailName = order.guest_name || "Customer";
+      if (emailTo) {
+        sendOrderStatusUpdate(emailTo, emailName, order.id, status).catch(
+          (err) => console.error("[Email] Error:", err)
+        );
+      }
     }
 
     return NextResponse.json({ order }, { status: 200 });

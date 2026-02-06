@@ -13,6 +13,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { createClient } from "@/src/integrations/supabase/client";
 import {
   Order,
@@ -24,6 +25,7 @@ import {
   formatOrderPrice,
   formatOrderTime,
   getOrderAge,
+  formatPaymentMethod,
 } from "@/src/types/order";
 
 /**
@@ -82,7 +84,7 @@ function OrderCard({
                 ⚡ Priority
               </span>
             )}
-            {order.guest_name && (
+            {!order.customer_id && (
               <span className="inline-flex items-center rounded-full border border-purple-300 bg-purple-100 px-2 py-0.5 text-xs font-semibold text-purple-800">
                 Guest
               </span>
@@ -101,9 +103,18 @@ function OrderCard({
           </p>
 
           {/* Time info */}
-          <div className="mt-2 flex items-center gap-3 text-xs text-[hsl(25,35%,55%)]">
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-[hsl(25,35%,55%)]">
             <span>🕐 {formatOrderTime(order.created_at)}</span>
             <span>• {orderAge}</span>
+            {order.pickup_time ? (
+              <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700">
+                Pickup: {formatOrderTime(order.pickup_time)}
+              </span>
+            ) : (
+              <span className="rounded bg-orange-50 px-1.5 py-0.5 text-orange-700">
+                ASAP
+              </span>
+            )}
           </div>
 
           {/* Notes preview */}
@@ -349,7 +360,7 @@ function OrderDetailModal({
             {/* Status */}
             <div className="flex items-center gap-3">
               <StatusBadge status={order.status} />
-              {order.guest_name && (
+              {!order.customer_id && (
                 <span className="inline-flex items-center rounded-full border border-purple-300 bg-purple-100 px-2 py-0.5 text-xs font-semibold text-purple-800">
                   Guest Order
                 </span>
@@ -475,7 +486,7 @@ function OrderDetailModal({
                 <div className="flex justify-between pt-2 text-xs">
                   <span className="text-[hsl(25,35%,55%)]">Payment Method</span>
                   <span className="capitalize text-[hsl(25,35%,25%)]">
-                    {order.payment_method}
+                    {formatPaymentMethod(order.payment_method)}
                   </span>
                 </div>
                 <div className="flex justify-between text-xs">
@@ -555,6 +566,14 @@ function OrderDetailModal({
                 ✕ Decline Order
               </button>
             )}
+            <a
+              href={`/staff/orders/print/${order.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-md border border-[hsl(35,20%,85%)] px-4 py-2 text-sm font-medium text-[hsl(25,35%,25%)] transition-colors hover:bg-[hsl(35,20%,95%)]"
+            >
+              Print Ticket
+            </a>
             <button
               onClick={onClose}
               className="rounded-md border border-[hsl(35,20%,85%)] px-4 py-2 text-sm font-medium text-[hsl(25,35%,25%)] transition-colors hover:bg-[hsl(35,20%,95%)]"
@@ -603,25 +622,26 @@ function StatusFilter({
   return (
     <div
       className="flex flex-wrap gap-2"
-      role="tablist"
+      role="group"
       aria-label="Filter orders by status"
     >
-      {filters.map((filter) => (
-        <button
-          key={filter.value}
-          onClick={() => onFilterChange(filter.value)}
-          className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-            activeFilter === filter.value
+      {filters.map((filter) => {
+        const isSelected = activeFilter === filter.value;
+        const buttonProps: React.ButtonHTMLAttributes<HTMLButtonElement> = {
+          onClick: () => onFilterChange(filter.value),
+          className: `rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+            isSelected
               ? "bg-[hsl(25,35%,25%)] text-white"
               : "bg-[hsl(35,20%,95%)] text-[hsl(25,35%,45%)] hover:bg-[hsl(35,20%,90%)]"
-          }`}
-          role="tab"
-          aria-selected={activeFilter === filter.value}
-          aria-controls="orders-list"
-        >
-          {filter.label} ({orderCounts[filter.value]})
-        </button>
-      ))}
+          }`,
+          "aria-pressed": isSelected ? "true" : "false",
+        };
+        return (
+          <button key={filter.value} {...buttonProps}>
+            {filter.label} ({orderCounts[filter.value]})
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -643,23 +663,56 @@ function isOrderHighPriority(createdAt: string): boolean {
 }
 
 /**
- * Sort orders by priority: earliest first (ASAP)
- * Orders are sorted by created_at ascending (oldest first = highest priority)
+ * Sort orders by priority with ASAP vs Scheduled handling:
+ * 1. Scheduled orders with pickup_time within 15 minutes (urgent)
+ * 2. Overdue ASAP orders (>10 min old, no pickup_time)
+ * 3. Remaining ASAP orders by created_at (oldest first)
+ * 4. Future scheduled orders by pickup_time ascending
  */
 function sortOrdersByPriority(orders: Order[]): Order[] {
+  const now = Date.now();
+  const FIFTEEN_MIN = 15 * 60 * 1000;
+  const TEN_MIN = 10 * 60 * 1000;
+
   return [...orders].sort((a, b) => {
-    // Primary sort: by created_at ascending (oldest first = highest priority)
-    const dateA = new Date(a.created_at).getTime();
-    const dateB = new Date(b.created_at).getTime();
-    return dateA - dateB;
+    const aIsScheduled = !!a.pickup_time;
+    const bIsScheduled = !!b.pickup_time;
+    const aPickup = a.pickup_time ? new Date(a.pickup_time).getTime() : 0;
+    const bPickup = b.pickup_time ? new Date(b.pickup_time).getTime() : 0;
+    const aCreated = new Date(a.created_at).getTime();
+    const bCreated = new Date(b.created_at).getTime();
+
+    // Priority bucket: 0 = scheduled within 15min, 1 = overdue ASAP, 2 = ASAP, 3 = future scheduled
+    const getBucket = (
+      isScheduled: boolean,
+      pickupTime: number,
+      createdAt: number
+    ) => {
+      if (isScheduled && pickupTime - now <= FIFTEEN_MIN) return 0;
+      if (!isScheduled && now - createdAt > TEN_MIN) return 1;
+      if (!isScheduled) return 2;
+      return 3;
+    };
+
+    const aBucket = getBucket(aIsScheduled, aPickup, aCreated);
+    const bBucket = getBucket(bIsScheduled, bPickup, bCreated);
+
+    if (aBucket !== bBucket) return aBucket - bBucket;
+
+    // Within same bucket: sort by pickup_time for scheduled, created_at for ASAP
+    if (aBucket === 0 || aBucket === 3) return aPickup - bPickup;
+    return aCreated - bCreated;
   });
 }
+
+type ScheduleFilter = "all" | "asap" | "scheduled";
 
 export default function StaffOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<OrderStatus | "all">("all");
+  const [scheduleFilter, setScheduleFilter] = useState<ScheduleFilter>("all");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [updating, setUpdating] = useState(false);
   const [quickActionConfirm, setQuickActionConfirm] = useState<{
@@ -805,10 +858,18 @@ export default function StaffOrdersPage() {
   }, [fetchOrders]);
 
   // Filter orders by status
-  const filteredOrders =
+  const statusFiltered =
     statusFilter === "all"
       ? orders
       : orders.filter((order) => order.status === statusFilter);
+
+  // Filter by ASAP/Scheduled
+  const filteredOrders =
+    scheduleFilter === "all"
+      ? statusFiltered
+      : scheduleFilter === "asap"
+        ? statusFiltered.filter((order) => !order.pickup_time)
+        : statusFiltered.filter((order) => !!order.pickup_time);
 
   // Sort filtered orders by priority (CSA-123)
   const sortedOrders = sortOrdersByPriority(filteredOrders);
@@ -864,14 +925,22 @@ export default function StaffOrdersPage() {
   return (
     <main className="container mx-auto px-4 py-8">
       {/* Header */}
-      <header className="mb-6">
-        <h1 className="text-3xl font-bold text-[hsl(25,35%,25%)]">
-          Orders Queue
-        </h1>
-        <p className="mt-1 text-[hsl(25,35%,55%)]">
-          Manage and process customer orders • Sorted by priority (earliest
-          first)
-        </p>
+      <header className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-[hsl(25,35%,25%)]">
+            Orders Queue
+          </h1>
+          <p className="mt-1 text-[hsl(25,35%,55%)]">
+            Manage and process customer orders • Sorted by priority (earliest
+            first)
+          </p>
+        </div>
+        <Link
+          href="/staff/orders/schedule"
+          className="rounded-md border border-[hsl(35,20%,85%)] bg-white px-4 py-2 text-sm font-medium text-[hsl(25,35%,25%)] transition-colors hover:bg-[hsl(35,20%,95%)]"
+        >
+          📅 View Schedule
+        </Link>
       </header>
 
       {/* Quick Stats */}
@@ -903,7 +972,7 @@ export default function StaffOrdersPage() {
       </div>
 
       {/* Status Filter */}
-      <div className="mb-6">
+      <div className="mb-4">
         <StatusFilter
           activeFilter={statusFilter}
           onFilterChange={setStatusFilter}
@@ -911,8 +980,36 @@ export default function StaffOrdersPage() {
         />
       </div>
 
+      {/* ASAP / Scheduled Filter */}
+      <div
+        className="mb-6 flex gap-2"
+        role="group"
+        aria-label="Filter by order type"
+      >
+        {(
+          [
+            { value: "all", label: "All Orders" },
+            { value: "asap", label: "ASAP" },
+            { value: "scheduled", label: "Scheduled" },
+          ] as const
+        ).map((filter) => (
+          <button
+            key={filter.value}
+            onClick={() => setScheduleFilter(filter.value)}
+            className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+              scheduleFilter === filter.value
+                ? "bg-[hsl(25,35%,25%)] text-white"
+                : "bg-[hsl(35,20%,95%)] text-[hsl(25,35%,45%)] hover:bg-[hsl(35,20%,90%)]"
+            }`}
+            aria-pressed={scheduleFilter === filter.value}
+          >
+            {filter.label}
+          </button>
+        ))}
+      </div>
+
       {/* Orders List */}
-      <section id="orders-list" role="tabpanel" aria-label="Orders list">
+      <section id="orders-list" role="region" aria-label="Orders list">
         {sortedOrders.length === 0 ? (
           <div className="rounded-lg border-2 border-dashed border-[hsl(35,20%,85%)] p-12 text-center">
             <div className="mb-4 text-5xl">☕</div>

@@ -16,6 +16,8 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useUser } from "@/src/hooks/useUser";
+import { toast } from "sonner";
+import { canCancelOrder } from "@/src/lib/order-utils";
 import {
   ORDER_STATUS_CONFIG,
   Order,
@@ -48,13 +50,39 @@ function StatusBadge({ status }: { status: OrderStatus }) {
 function DetailModal({
   order,
   onClose,
+  onOrderCancelled,
 }: {
   order: Order;
   onClose: () => void;
+  onOrderCancelled: () => void;
 }) {
   const customerName = getOrderCustomerName(order);
   const customerEmail = getOrderCustomerEmail(order);
   const itemCount = order.items.reduce((sum, item) => sum + item.quantity, 0);
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  const handleCancel = async () => {
+    if (!confirm("Are you sure you want to cancel this order?")) return;
+    setIsCancelling(true);
+    try {
+      const res = await fetch(`/api/orders/${order.id}/cancel`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to cancel");
+      }
+      toast.success("Order cancelled successfully");
+      onOrderCancelled();
+      onClose();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const showCancel = canCancelOrder(order);
 
   const renderInvoicePdf = () => {
     const doc = new jsPDF();
@@ -159,7 +187,7 @@ function DetailModal({
           <div>
             <div className="flex items-center gap-3">
               <StatusBadge status={order.status} />
-              {order.guest_name && (
+              {!order.customer_id && (
                 <span className="rounded-full bg-[hsl(25,75%,94%)] px-2 py-1 text-xs font-semibold text-[hsl(25,65%,35%)]">
                   Guest order
                 </span>
@@ -191,9 +219,9 @@ function DetailModal({
             <div className="text-sm text-[hsl(25,25%,45%)]">
               {customerEmail}
             </div>
-            {order.guest_name && (
+            {!order.customer_id && (
               <div className="text-sm text-[hsl(25,25%,45%)]">
-                Guest name provided at checkout.
+                Guest checkout (no account)
               </div>
             )}
           </div>
@@ -203,8 +231,13 @@ function DetailModal({
               {itemCount} {itemCount === 1 ? "item" : "items"}
             </div>
             <div className="text-sm text-[hsl(25,25%,45%)]">
-              Payment: {order.payment_method === "card" ? "Card" : "Cash"} (
-              {order.payment_status})
+              Payment:{" "}
+              {order.payment_method === "card"
+                ? "Card"
+                : order.payment_method === "cash"
+                  ? "Cash"
+                  : "Loyalty Points"}{" "}
+              ({order.payment_status})
             </div>
             {order.pickup_time && (
               <div className="text-sm text-[hsl(25,25%,45%)]">
@@ -299,6 +332,21 @@ function DetailModal({
             </div>
           )}
         </div>
+
+        {showCancel && (
+          <div className="border-t border-[hsl(35,25%,90%)] px-6 py-4">
+            <button
+              onClick={handleCancel}
+              disabled={isCancelling}
+              className="w-full rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+            >
+              {isCancelling ? "Cancelling..." : "Cancel Order"}
+            </button>
+            <p className="mt-2 text-center text-xs text-[hsl(25,25%,45%)]">
+              You can cancel this order within 5 minutes of placement.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -317,7 +365,7 @@ function OrderCard({ order, onClick }: { order: Order; onClick: () => void }) {
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={order.status} />
-            {order.guest_name && (
+            {!order.customer_id && (
               <span className="rounded-full bg-[hsl(25,75%,94%)] px-2 py-1 text-[11px] font-semibold text-[hsl(25,65%,35%)]">
                 Guest
               </span>
@@ -400,6 +448,51 @@ export default function OrdersPage() {
     }
   }, []);
 
+  const fetchGuestOrder = useCallback(
+    async (orderId: string, email: string) => {
+      setOrdersLoading(true);
+      setLookupLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch("/api/orders/lookup", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            orderId: orderId.trim(),
+            email: email.trim(),
+          }),
+        });
+
+        const data: OrdersResponse = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Unable to find orders for that email");
+        }
+
+        const sortedOrders = (data.orders || []).sort(
+          (a, b) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+
+        setOrders(sortedOrders);
+        setLastLookupEmail(email.trim());
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Unable to find that order"
+        );
+        setOrders([]);
+        setLastLookupEmail(null);
+      } finally {
+        setOrdersLoading(false);
+        setLookupLoading(false);
+      }
+    },
+    []
+  );
+
   useEffect(() => {
     if (userLoading) return;
     if (user) {
@@ -412,44 +505,14 @@ export default function OrdersPage() {
 
   const handleGuestLookup = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setError(null);
-    setOrdersLoading(true);
-    setLookupLoading(true);
+    fetchGuestOrder(guestOrderId, guestEmail);
+  };
 
-    try {
-      const response = await fetch("/api/orders/lookup", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          orderId: guestOrderId.trim(),
-          email: guestEmail.trim(),
-        }),
-      });
-
-      const data: OrdersResponse = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Unable to find orders for that email");
-      }
-
-      const sortedOrders = (data.orders || []).sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-
-      setOrders(sortedOrders);
-      setLastLookupEmail(guestEmail.trim());
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Unable to find that order"
-      );
-      setOrders([]);
-      setLastLookupEmail(null);
-    } finally {
-      setOrdersLoading(false);
-      setLookupLoading(false);
+  const handleOrderCancelled = () => {
+    if (user) {
+      fetchAuthenticatedOrders();
+    } else if (guestOrderId && guestEmail) {
+      fetchGuestOrder(guestOrderId, guestEmail);
     }
   };
 
@@ -578,7 +641,7 @@ export default function OrdersPage() {
                     Guests use order ID + email to find their orders.
                   </p>
                 </div>
-                <span className="rounded-full bg-[hsl(35,20%,96%)] px-3 py-1 text-xs font-semibold text-[hsl(25,35%,30%)]">
+                <span className="whitespace-nowrap rounded-full bg-[hsl(35,20%,96%)] px-2 py-1 text-xs font-semibold text-[hsl(25,35%,30%)]">
                   Guest friendly
                 </span>
               </div>
@@ -639,7 +702,11 @@ export default function OrdersPage() {
       </div>
 
       {modalOrder && (
-        <DetailModal order={modalOrder} onClose={() => setModalOrder(null)} />
+        <DetailModal
+          order={modalOrder}
+          onClose={() => setModalOrder(null)}
+          onOrderCancelled={handleOrderCancelled}
+        />
       )}
     </main>
   );

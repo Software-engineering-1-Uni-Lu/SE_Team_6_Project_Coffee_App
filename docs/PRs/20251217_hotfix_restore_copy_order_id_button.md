@@ -1,7 +1,7 @@
 # PR Description: hotfix/restore-copy-order-id-button
 
 **Branch:** `hotfix/restore-copy-order-id-button`  
-**Author:** Assistant  
+**Author:** Zekonja Filip
 **Date:** 2025-12-17
 
 ---

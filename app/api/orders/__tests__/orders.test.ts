@@ -276,6 +276,51 @@ describe("POST /api/orders", () => {
       expect(response.status).not.toBe(400);
     });
 
+    it("should accept loyalty_points as valid payment method", async () => {
+      const mockUser = mockUsers.customer;
+      mockSupabaseClient.auth.getUser.mockResolvedValue({
+        data: { user: mockUser },
+        error: null,
+      });
+
+      const mockFrom = jest.fn((table: string) => {
+        if (table === "user_roles") {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            single: jest.fn().mockResolvedValue({
+              data: { role: "customer" },
+              error: null,
+            }),
+          };
+        }
+        return {
+          insert: jest.fn().mockReturnThis(),
+          select: jest.fn().mockReturnThis(),
+          single: jest.fn().mockResolvedValue({
+            data: mockOrder,
+            error: null,
+          }),
+        };
+      });
+      mockSupabaseClient.from = mockFrom;
+      mockSupabaseClient.rpc.mockResolvedValue({
+        data: mockOrder,
+        error: null,
+      });
+
+      const request = createMockRequest("http://localhost:3000/api/orders", {
+        method: "POST",
+        body: {
+          ...validOrderData,
+          payment_method: "loyalty_points",
+        },
+      });
+
+      const response = await POST(request);
+      expect(response.status).not.toBe(400);
+    });
+
     it("should return 400 for malformed JSON", async () => {
       const request = createMockRequest("http://localhost:3000/api/orders", {
         method: "POST",
@@ -330,6 +375,60 @@ describe("POST /api/orders", () => {
       const response = await POST(request);
       const data = await response.json();
 
+      expect(response.status).toBe(201);
+      expect(data.order).toEqual(mockOrder);
+    });
+
+    it("should create loyalty points order via RPC", async () => {
+      const mockUser = mockUsers.customer;
+      mockSupabaseClient.auth.getUser.mockResolvedValue({
+        data: { user: mockUser },
+        error: null,
+      });
+
+      const mockFrom = jest.fn((table: string) => {
+        if (table === "user_roles") {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            single: jest.fn().mockResolvedValue({
+              data: { role: "customer" },
+              error: null,
+            }),
+          };
+        }
+        return {
+          insert: jest.fn().mockReturnThis(),
+          select: jest.fn().mockReturnThis(),
+          single: jest.fn().mockResolvedValue({
+            data: mockOrder,
+            error: null,
+          }),
+        };
+      });
+      mockSupabaseClient.from = mockFrom;
+      mockSupabaseClient.rpc.mockResolvedValue({
+        data: mockOrder,
+        error: null,
+      });
+
+      const request = createMockRequest("http://localhost:3000/api/orders", {
+        method: "POST",
+        body: {
+          ...validOrderData,
+          payment_method: "loyalty_points",
+        },
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(mockSupabaseClient.rpc).toHaveBeenCalledWith(
+        "create_loyalty_points_order",
+        expect.objectContaining({
+          p_items: validOrderData.items,
+        })
+      );
       expect(response.status).toBe(201);
       expect(data.order).toEqual(mockOrder);
     });
@@ -562,6 +661,26 @@ describe("POST /api/orders", () => {
       }
     });
 
+    it("should return 400 when guest uses loyalty_points", async () => {
+      const request = createMockRequest("http://localhost:3000/api/orders", {
+        method: "POST",
+        body: {
+          ...validOrderData,
+          payment_method: "loyalty_points",
+          guest_name: "John Doe",
+          guest_email: "john@example.com",
+        },
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toBe(
+        "Loyalty points require an authenticated account"
+      );
+    });
+
     it("should trim guest name and email", async () => {
       const mockFrom = {
         insert: jest.fn().mockReturnThis(),
@@ -634,6 +753,54 @@ describe("POST /api/orders", () => {
 
       expect(response.status).toBe(500);
       expect(data.error).toBe("Database error");
+    });
+
+    it("should return 400 when loyalty points are insufficient", async () => {
+      const mockUser = mockUsers.customer;
+      mockSupabaseClient.auth.getUser.mockResolvedValue({
+        data: { user: mockUser },
+        error: null,
+      });
+
+      const mockFrom = jest.fn((table: string) => {
+        if (table === "user_roles") {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            single: jest.fn().mockResolvedValue({
+              data: { role: "customer" },
+              error: null,
+            }),
+          };
+        }
+        return {
+          insert: jest.fn().mockReturnThis(),
+          select: jest.fn().mockReturnThis(),
+          single: jest.fn().mockResolvedValue({
+            data: null,
+            error: null,
+          }),
+        };
+      });
+      mockSupabaseClient.from = mockFrom;
+      mockSupabaseClient.rpc.mockResolvedValue({
+        data: null,
+        error: { message: "Insufficient points" },
+      });
+
+      const request = createMockRequest("http://localhost:3000/api/orders", {
+        method: "POST",
+        body: {
+          ...validOrderData,
+          payment_method: "loyalty_points",
+        },
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toBe("Insufficient loyalty points for this order");
     });
 
     it("should handle unexpected errors gracefully", async () => {

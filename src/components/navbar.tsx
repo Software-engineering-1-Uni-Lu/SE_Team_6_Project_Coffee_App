@@ -99,6 +99,42 @@ export function Navbar({ onCartOpen }: NavbarProps) {
                     >
                       Menu Management
                     </Link>
+                    <Link
+                      href="/manager/ingredients"
+                      className="block px-4 py-2 text-sm text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,95%)]"
+                    >
+                      Ingredients
+                    </Link>
+                    <Link
+                      href="/manager/ingredients/bulk-import"
+                      className="block px-4 py-2 text-sm text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,95%)]"
+                    >
+                      Bulk Stock Import
+                    </Link>
+                    <Link
+                      href="/manager/ingredients/audit-log"
+                      className="block px-4 py-2 text-sm text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,95%)]"
+                    >
+                      Stock Audit Log
+                    </Link>
+                    <Link
+                      href="/manager/missing-ingredients"
+                      className="block px-4 py-2 text-sm text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,95%)]"
+                    >
+                      Missing Ingredients
+                    </Link>
+                    <Link
+                      href="/manager/promotions"
+                      className="block px-4 py-2 text-sm text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,95%)]"
+                    >
+                      Promotions
+                    </Link>
+                    <Link
+                      href="/admin/system"
+                      className="block px-4 py-2 text-sm text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,95%)]"
+                    >
+                      System
+                    </Link>
                   </div>
                 </div>
               )}
@@ -124,6 +160,24 @@ export function Navbar({ onCartOpen }: NavbarProps) {
                         className="block px-4 py-2 text-sm text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,95%)]"
                       >
                         Orders
+                      </Link>
+                      <Link
+                        href="/staff/ingredients"
+                        className="block px-4 py-2 text-sm text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,95%)]"
+                      >
+                        Missing Ingredients
+                      </Link>
+                      <Link
+                        href="/staff/shift-notes"
+                        className="block px-4 py-2 text-sm text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,95%)]"
+                      >
+                        Shift Notes
+                      </Link>
+                      <Link
+                        href="/staff/settings/mfa"
+                        className="block px-4 py-2 text-sm text-[hsl(25,35%,25%)] hover:bg-[hsl(35,20%,95%)]"
+                      >
+                        MFA Settings
                       </Link>
                     </div>
                   </div>

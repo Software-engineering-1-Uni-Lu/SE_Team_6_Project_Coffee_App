@@ -19,6 +19,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { createAnonClient } from "@/src/integrations/supabase/anon";
+import { isWithinOpeningHours, OpeningHours } from "@/src/lib/opening-hours";
+import { sendOrderConfirmation } from "@/src/lib/notifications";
 
 export async function POST(request: NextRequest) {
   try {
@@ -65,7 +67,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!payment_method || !["card", "cash"].includes(payment_method)) {
+    if (
+      !payment_method ||
+      !["card", "cash", "loyalty_points", "digital_wallet"].includes(
+        payment_method
+      )
+    ) {
       return NextResponse.json(
         { error: "Valid payment method is required" },
         { status: 400 }
@@ -91,6 +98,29 @@ export async function POST(request: NextRequest) {
         },
       }
     );
+
+    // Validate pickup time if provided
+    if (pickup_time) {
+      const pickupDate = new Date(pickup_time);
+
+      // Fetch opening hours
+      const { data: settingsData } = await supabase
+        .from("settings")
+        .select("opening_hours")
+        .limit(1)
+        .single();
+
+      if (settingsData && settingsData.opening_hours) {
+        const openingHours =
+          settingsData.opening_hours as unknown as OpeningHours;
+        if (!isWithinOpeningHours(pickupDate, openingHours)) {
+          return NextResponse.json(
+            { error: "Pickup time is outside opening hours" },
+            { status: 400 }
+          );
+        }
+      }
+    }
 
     // Get authenticated user
     const {
@@ -140,6 +170,13 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+      if (payment_method === "loyalty_points") {
+        return NextResponse.json(
+          { error: "Loyalty points require an authenticated account" },
+          { status: 400 }
+        );
+      }
+
       // Validate email format
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(guest_email.trim())) {
@@ -151,9 +188,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Prepare order data
-    // CRITICAL: Set guest fields correctly based on authentication status
-    // For authenticated users: use customer_id, set guest fields to null
-    // For guest orders: set customer_id to null, use guest fields
+    // CRITICAL: guest_name and guest_email are now used for ALL orders to store contact info
+    // - For guest orders: customer_id is null, guest fields store the guest's info
+    // - For authenticated orders: customer_id is set, guest fields store custom contact info (e.g., ordering for a friend)
     const orderData: {
       customer_id: string | null;
       guest_name: string | null;
@@ -163,13 +200,13 @@ export async function POST(request: NextRequest) {
       subtotal_cents: number;
       tax_cents: number;
       total_cents: number;
-      payment_method: "card" | "cash";
+      payment_method: "card" | "cash" | "loyalty_points" | "digital_wallet";
       payment_status: string;
       pickup_time: string | null;
     } = {
       customer_id: user ? user.id : null,
-      guest_name: user ? null : guest_name?.trim() || null,
-      guest_email: user ? null : guest_email?.trim() || null,
+      guest_name: guest_name?.trim() || null,
+      guest_email: guest_email?.trim() || null,
       status: "pending",
       items,
       subtotal_cents,
@@ -177,7 +214,12 @@ export async function POST(request: NextRequest) {
       total_cents,
       payment_method,
       payment_status:
-        payment_status || (payment_method === "card" ? "paid" : "unpaid"),
+        payment_status ||
+        (payment_method === "card" ||
+        payment_method === "loyalty_points" ||
+        payment_method === "digital_wallet"
+          ? "paid"
+          : "unpaid"),
       pickup_time: pickup_time || null,
     };
 
@@ -189,17 +231,45 @@ export async function POST(request: NextRequest) {
     if (user) {
       // For authenticated customers: use authenticated client
       // RLS policy: auth.uid() = customer_id AND has_role(auth.uid(), 'customer')
-      const result = await supabase
-        .from("orders")
-        .insert(orderData)
-        .select()
-        .single();
+      if (payment_method === "loyalty_points") {
+        const result = await supabase.rpc("create_loyalty_points_order", {
+          p_items: orderData.items,
+          p_subtotal_cents: orderData.subtotal_cents,
+          p_tax_cents: orderData.tax_cents,
+          p_total_cents: orderData.total_cents,
+          p_pickup_time: orderData.pickup_time,
+          p_status: orderData.status,
+        });
 
-      order = result.data;
-      error = result.error;
+        order = result.data;
+        error = result.error;
+      } else {
+        const result = await supabase
+          .from("orders")
+          .insert(orderData)
+          .select()
+          .single();
+
+        order = result.data;
+        error = result.error;
+      }
 
       if (error) {
         console.error("Customer order error:", error);
+
+        if (error.message?.includes("Insufficient points")) {
+          return NextResponse.json(
+            { error: "Insufficient loyalty points for this order" },
+            { status: 400 }
+          );
+        }
+
+        if (error.message?.includes("Only customers")) {
+          return NextResponse.json(
+            { error: "Only customers can use loyalty points" },
+            { status: 403 }
+          );
+        }
 
         // Provide helpful error messages
         if (error.code === "42501") {
@@ -304,6 +374,25 @@ export async function POST(request: NextRequest) {
         { error: "Failed to create order" },
         { status: 500 }
       );
+    }
+
+    // Send order confirmation email (best-effort, don't block response)
+    const emailTo = orderData.guest_email;
+    const emailName = orderData.guest_name || "Customer";
+    if (emailTo) {
+      sendOrderConfirmation({
+        orderId: order.id,
+        customerEmail: emailTo,
+        customerName: emailName,
+        items: orderData.items.map((item: any) => ({
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price || 0,
+        })),
+        totalCents: orderData.total_cents,
+        paymentMethod: orderData.payment_method,
+        pickupTime: orderData.pickup_time,
+      }).catch((err) => console.error("[Email] Error:", err));
     }
 
     return NextResponse.json({ order }, { status: 201 });

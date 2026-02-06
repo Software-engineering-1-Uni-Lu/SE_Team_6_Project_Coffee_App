@@ -17,7 +17,11 @@ export type OrderStatus =
   | "completed"
   | "cancelled";
 
-export type PaymentMethod = "card" | "cash";
+export type PaymentMethod =
+  | "card"
+  | "cash"
+  | "loyalty_points"
+  | "digital_wallet";
 
 export type PaymentStatus = "paid" | "unpaid" | "refunded";
 
@@ -153,6 +157,24 @@ export function getOrderCustomerEmail(order: Order): string {
     return order.customer.email;
   }
   return "No email provided";
+}
+
+/**
+ * Helper to get user-friendly payment method label
+ */
+export function formatPaymentMethod(method: PaymentMethod): string {
+  switch (method) {
+    case "card":
+      return "Card";
+    case "cash":
+      return "Cash";
+    case "loyalty_points":
+      return "Loyalty Points";
+    case "digital_wallet":
+      return "Apple Pay";
+    default:
+      return method;
+  }
 }
 
 /**

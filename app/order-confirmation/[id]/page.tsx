@@ -5,6 +5,9 @@ import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/src/integrations/supabase/client";
 import { useUser } from "@/src/hooks/useUser";
 import { jsPDF } from "jspdf";
+import { useGracePeriod } from "@/src/hooks/useGracePeriod";
+import { toast } from "sonner";
+import { formatPaymentMethod, type PaymentMethod } from "@/src/types/order";
 
 /**
  * Purpose: Order confirmation page displaying order summary after checkout.
@@ -13,10 +16,13 @@ import { jsPDF } from "jspdf";
 
 interface OrderItem {
   id: string;
+  productId?: string;
   name: string;
   quantity: number;
   price: number;
+  basePrice?: number;
   modifiers?: Array<{ label: string; price: number }>;
+  imageUrl?: string | null;
 }
 
 interface Order {
@@ -35,6 +41,7 @@ interface Order {
   guest_name?: string | null;
   guest_email?: string | null;
   created_at: string;
+  customer_id?: string | null;
 }
 
 const formatCurrency = (cents: number) => `€ ${(cents / 100).toFixed(2)}`;
@@ -51,6 +58,11 @@ export default function OrderConfirmationPage() {
   const [emailInput, setEmailInput] = useState("");
   const [lookupLoading, setLookupLoading] = useState(false);
   const [invoiceGenerating, setInvoiceGenerating] = useState(false);
+
+  const { canCancel, remainingSeconds } = useGracePeriod(
+    order?.created_at || "",
+    order?.status
+  );
 
   const cacheKey = useMemo(
     () => (orderId ? `order:${orderId}` : null),
@@ -164,6 +176,22 @@ export default function OrderConfirmationPage() {
       setError(err instanceof Error ? err.message : "Failed to look up order");
     } finally {
       setLookupLoading(false);
+    }
+  };
+
+  const handleCancelOrder = async () => {
+    if (!order) return;
+    try {
+      const response = await fetch(`/api/orders/${order.id}/cancel`, {
+        method: "POST",
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+
+      toast.success("Order cancelled successfully");
+      setOrder(data.order); // Update local state
+    } catch (err: any) {
+      toast.error(err.message || "Failed to cancel order");
     }
   };
 
@@ -417,6 +445,59 @@ export default function OrderConfirmationPage() {
 
         {/* Order Summary Card */}
         <div className="rounded-lg border border-[hsl(25,25%,85%)] bg-white p-6 shadow-sm">
+          {/* Cancel Order Section */}
+          {order?.status === "cancelled" ? (
+            <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-center">
+              <p className="font-semibold text-red-800">
+                This order has been cancelled.
+              </p>
+            </div>
+          ) : canCancel ? (
+            <div className="mb-6 rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-center">
+              <p className="mb-3 text-sm text-yellow-800">
+                You can cancel or modify this order within{" "}
+                <span className="font-mono font-semibold text-red-600">
+                  {Math.floor(remainingSeconds / 60)}:
+                  {(remainingSeconds % 60).toString().padStart(2, "0")}
+                </span>
+              </p>
+              <div className="flex justify-center gap-3">
+                <button
+                  onClick={() => {
+                    // Store order items in sessionStorage for the cart to load
+                    // Ensure each item has productId for loadFromOrder compatibility
+                    const modifyItems = order.items.map((item) => ({
+                      productId: item.productId || item.id,
+                      name: item.name,
+                      quantity: item.quantity,
+                      price: item.price,
+                      basePrice: item.basePrice,
+                      modifiers: item.modifiers || [],
+                      imageUrl: item.imageUrl || null,
+                    }));
+                    sessionStorage.setItem(
+                      "modify_order",
+                      JSON.stringify({
+                        orderId: order.id,
+                        items: modifyItems,
+                      })
+                    );
+                    router.push("/checkout");
+                  }}
+                  className="rounded-md bg-[hsl(25,35%,25%)] px-4 py-2 text-sm font-medium text-white hover:bg-[hsl(25,40%,15%)]"
+                >
+                  Modify Order
+                </button>
+                <button
+                  onClick={handleCancelOrder}
+                  className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                >
+                  Cancel Order
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           {/* Order Info */}
           <section className="mb-6 border-b border-[hsl(25,25%,85%)] pb-6">
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -434,7 +515,7 @@ export default function OrderConfirmationPage() {
                 </button>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
               <div>
                 <span className="font-medium text-[hsl(25,20%,40%)]">
                   Order Number:
@@ -460,6 +541,18 @@ export default function OrderConfirmationPage() {
                 <p className="font-semibold text-[hsl(25,75%,47%)]">
                   {formatStatus(order.status)}
                 </p>
+              </div>
+              <div>
+                <span className="font-medium text-[hsl(25,20%,40%)]">
+                  Customer Name:
+                </span>
+                <p className="text-[hsl(25,35%,25%)]">{getCustomerName()}</p>
+              </div>
+              <div>
+                <span className="font-medium text-[hsl(25,20%,40%)]">
+                  Contact Email:
+                </span>
+                <p className="text-[hsl(25,35%,25%)]">{getCustomerEmail()}</p>
               </div>
               <div>
                 <span className="font-medium text-[hsl(25,20%,40%)]">
@@ -556,7 +649,7 @@ export default function OrderConfirmationPage() {
                   Payment Method:
                 </span>
                 <p className="text-[hsl(25,35%,25%)]">
-                  {order.payment_method === "card" ? "Card" : "Cash"}
+                  {formatPaymentMethod(order.payment_method as PaymentMethod)}
                 </p>
               </div>
               {order.points_earned > 0 && (

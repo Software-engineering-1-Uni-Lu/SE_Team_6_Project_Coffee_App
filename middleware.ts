@@ -420,6 +420,19 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
+    // Check MFA: if user has enrolled TOTP factors but hasn't verified (AAL1 vs AAL2)
+    const { data: aalData } =
+      await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (
+      aalData &&
+      aalData.nextLevel === "aal2" &&
+      aalData.currentLevel === "aal1"
+    ) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/auth/mfa-challenge";
+      return NextResponse.redirect(url);
+    }
+
     // Staff, manager, and admin can all access /staff routes
     return response;
   }
