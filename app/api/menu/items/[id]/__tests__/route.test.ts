@@ -504,7 +504,7 @@ describe("DELETE /api/menu/items/[id]", () => {
             }),
           }),
         }),
-        delete: jest.fn().mockReturnValue({
+        update: jest.fn().mockReturnValue({
           eq: jest.fn().mockResolvedValue({
             data: null,
             error: null,
@@ -542,7 +542,7 @@ describe("DELETE /api/menu/items/[id]", () => {
             }),
           }),
         }),
-        delete: jest.fn().mockReturnValue({
+        update: jest.fn().mockReturnValue({
           eq: jest.fn().mockResolvedValue({
             data: null,
             error: null,
@@ -582,7 +582,7 @@ describe("DELETE /api/menu/items/[id]", () => {
             }),
           }),
         }),
-        delete: jest.fn().mockReturnValue({
+        update: jest.fn().mockReturnValue({
           eq: jest.fn().mockResolvedValue({
             data: null,
             error: { message: "Database error" },

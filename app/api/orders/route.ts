@@ -20,6 +20,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { createAnonClient } from "@/src/integrations/supabase/anon";
 import { isWithinOpeningHours, OpeningHours } from "@/src/lib/opening-hours";
+import { sendOrderConfirmation } from "@/src/lib/notifications";
 
 export async function POST(request: NextRequest) {
   try {
@@ -68,7 +69,9 @@ export async function POST(request: NextRequest) {
 
     if (
       !payment_method ||
-      !["card", "cash", "loyalty_points"].includes(payment_method)
+      !["card", "cash", "loyalty_points", "digital_wallet"].includes(
+        payment_method
+      )
     ) {
       return NextResponse.json(
         { error: "Valid payment method is required" },
@@ -197,7 +200,7 @@ export async function POST(request: NextRequest) {
       subtotal_cents: number;
       tax_cents: number;
       total_cents: number;
-      payment_method: "card" | "cash" | "loyalty_points";
+      payment_method: "card" | "cash" | "loyalty_points" | "digital_wallet";
       payment_status: string;
       pickup_time: string | null;
     } = {
@@ -212,7 +215,9 @@ export async function POST(request: NextRequest) {
       payment_method,
       payment_status:
         payment_status ||
-        (payment_method === "card" || payment_method === "loyalty_points"
+        (payment_method === "card" ||
+        payment_method === "loyalty_points" ||
+        payment_method === "digital_wallet"
           ? "paid"
           : "unpaid"),
       pickup_time: pickup_time || null,
@@ -369,6 +374,25 @@ export async function POST(request: NextRequest) {
         { error: "Failed to create order" },
         { status: 500 }
       );
+    }
+
+    // Send order confirmation email (best-effort, don't block response)
+    const emailTo = orderData.guest_email;
+    const emailName = orderData.guest_name || "Customer";
+    if (emailTo) {
+      sendOrderConfirmation({
+        orderId: order.id,
+        customerEmail: emailTo,
+        customerName: emailName,
+        items: orderData.items.map((item: any) => ({
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price || 0,
+        })),
+        totalCents: orderData.total_cents,
+        paymentMethod: orderData.payment_method,
+        pickupTime: orderData.pickup_time,
+      }).catch((err) => console.error("[Email] Error:", err));
     }
 
     return NextResponse.json({ order }, { status: 201 });

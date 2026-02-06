@@ -85,6 +85,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if MFA is required (AAL2 needed for staff/admin with enrolled factors)
+    const { data: aalData } =
+      await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (
+      aalData &&
+      aalData.nextLevel === "aal2" &&
+      aalData.currentLevel === "aal1"
+    ) {
+      return NextResponse.json(
+        {
+          message: "MFA required",
+          mfa_required: true,
+          user: {
+            id: data.user.id,
+            email: data.user.email,
+          },
+        },
+        {
+          status: 200,
+          headers: response.headers,
+        }
+      );
+    }
+
     // Create success response
     const successData = {
       message: "Login successful",

@@ -192,7 +192,11 @@ export async function DELETE(
       );
     }
 
-    const { error } = await supabase.from("items").delete().eq("id", params.id);
+    // Soft delete: set deleted_at instead of removing the row
+    const { error } = await supabase
+      .from("items")
+      .update({ deleted_at: new Date().toISOString(), active: false })
+      .eq("id", params.id);
 
     if (error) {
       console.error("Error deleting item:", error);
