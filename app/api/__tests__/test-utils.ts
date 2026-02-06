@@ -98,6 +98,12 @@ export function createMockSupabaseClient(
       signInWithPassword: jest.fn(),
       signUp: jest.fn(),
       signOut: jest.fn(),
+      mfa: {
+        getAuthenticatorAssuranceLevel: jest.fn().mockResolvedValue({
+          data: { currentLevel: "aal1", nextLevel: "aal1" },
+          error: null,
+        }),
+      },
     },
     rpc: jest.fn().mockResolvedValue({
       data: rpcData,

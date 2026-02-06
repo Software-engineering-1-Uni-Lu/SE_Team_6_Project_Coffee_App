@@ -51,6 +51,7 @@ describe("GET /api/menu/items", () => {
     it("should return all menu items with 200 status", async () => {
       const mockFrom = {
         select: jest.fn().mockReturnThis(),
+        is: jest.fn().mockReturnThis(),
         order: jest.fn().mockResolvedValue({
           data: mockMenuItems,
           error: null,
@@ -75,6 +76,7 @@ describe("GET /api/menu/items", () => {
     it("should return empty array when no items exist", async () => {
       const mockFrom = {
         select: jest.fn().mockReturnThis(),
+        is: jest.fn().mockReturnThis(),
         order: jest.fn().mockResolvedValue({
           data: [],
           error: null,
@@ -94,6 +96,7 @@ describe("GET /api/menu/items", () => {
     it("should handle null data gracefully", async () => {
       const mockFrom = {
         select: jest.fn().mockReturnThis(),
+        is: jest.fn().mockReturnThis(),
         order: jest.fn().mockResolvedValue({
           data: null,
           error: null,
@@ -115,6 +118,7 @@ describe("GET /api/menu/items", () => {
     it("should return 500 when database query fails", async () => {
       const mockFrom = {
         select: jest.fn().mockReturnThis(),
+        is: jest.fn().mockReturnThis(),
         order: jest.fn().mockResolvedValue({
           data: null,
           error: { message: "Database error" },
