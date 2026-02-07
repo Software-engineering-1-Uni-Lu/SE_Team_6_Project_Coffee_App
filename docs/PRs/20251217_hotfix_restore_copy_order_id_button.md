@@ -28,7 +28,7 @@ Restore the order confirmation “Copy” button so guests and authenticated use
 
 ## Testing Checklist
 
-- [x] `npm run lint`
+- [ ] `npm run lint`
 - [ ] Manual: order confirmation page shows truncated ID with “Copy” button
 - [ ] Manual: clicking “Copy” copies full order ID to clipboard (guest)
 - [ ] Manual: clicking “Copy” copies full order ID to clipboard (authenticated)
