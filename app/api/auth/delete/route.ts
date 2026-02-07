@@ -20,6 +20,8 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 
+export const dynamic = "force-dynamic";
+
 export async function DELETE(request: NextRequest) {
   try {
     const cookieStore = await cookies();

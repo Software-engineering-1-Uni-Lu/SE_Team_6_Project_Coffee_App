@@ -9,6 +9,8 @@ import { NextResponse } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
+export const dynamic = "force-dynamic";
+
 const HISTORY_LIMIT = 20;
 
 export async function GET() {
