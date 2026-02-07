@@ -22,6 +22,8 @@ import { createAnonClient } from "@/src/integrations/supabase/anon";
 import { isWithinOpeningHours, OpeningHours } from "@/src/lib/opening-hours";
 import { sendOrderConfirmation } from "@/src/lib/notifications";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
   try {
     // Parse request body with error handling

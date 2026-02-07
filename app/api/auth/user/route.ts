@@ -28,6 +28,8 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { isBlockedFromDB } from "@/src/lib/auth";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const cookieStore = await cookies();

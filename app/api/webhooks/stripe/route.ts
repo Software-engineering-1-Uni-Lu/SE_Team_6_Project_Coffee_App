@@ -15,6 +15,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { paymentService } from "@/src/lib/payment";
 import { createClient } from "@/src/integrations/supabase/server";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
   try {
     const payload = await request.text();

@@ -11,6 +11,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
+export const dynamic = "force-dynamic";
+
 function escapeCSVField(field: any): string {
   if (field === null || field === undefined) {
     return "";

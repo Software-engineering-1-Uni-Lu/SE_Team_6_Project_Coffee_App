@@ -10,6 +10,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/src/integrations/supabase/server";
 import { getCurrentUser } from "@/src/lib/auth";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser();

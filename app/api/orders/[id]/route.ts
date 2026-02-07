@@ -20,6 +20,8 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { sendOrderStatusUpdate } from "@/src/lib/notifications";
 
+export const dynamic = "force-dynamic";
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
